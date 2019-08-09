@@ -1,15 +1,7 @@
 #define MAX_INSTANCES 5
 
-cbuffer ConstantBuffer : register(b0)
-{
-	matrix	wrld;
-	matrix	view;
-	matrix	proj;
-	float4	instanceOffsets[MAX_INSTANCES];
-	float	t;
-}
-
-struct S_VSInput
+// SHADER INPUT
+struct S_VSINPUT
 {
     float4	pos : POSITION;
     float4	color : COLOR;
@@ -18,7 +10,8 @@ struct S_VSInput
     uint	instanceID : SV_INSTANCEID;
 };
 
-struct S_VSOutput
+// SHADER OUTPUT
+struct S_VSOUTPUT
 {
     float4	pos : SV_POSITION;
     float4	color : COLOR;
@@ -27,18 +20,31 @@ struct S_VSOutput
     uint	instanceID : SV_INSTANCEID;
 };
 
-S_VSOutput main(S_VSInput _input)
+// CONSTANT BUFFER
+cbuffer ConstantBuffer : register(b0)
 {
-    S_VSOutput output = (S_VSOutput) 0;
+	matrix	wrld;
+	matrix	view;
+	matrix	proj;
+	matrix	instanceOffsets[MAX_INSTANCES];
+	float	t;
+	float3	pad;
+}
+
+// SHADER
+S_VSOUTPUT main(S_VSINPUT _input)
+{
+	S_VSOUTPUT output = (S_VSOUTPUT) 0;
     output.pos = _input.pos;
     output.color = _input.color;
     output.norm = _input.norm;
     output.tex = _input.tex;
     output.instanceID = _input.instanceID;
 
-	//output.pos = mul(output.pos, wrld);
-	//output.pos = mul(output.pos, view);
-	//output.pos = mul(output.pos, proj);
+	//output.pos += instanceOffsets[output.instanceID];
+	output.pos = mul(output.pos, wrld);
+	output.pos = mul(output.pos, view);
+	output.pos = mul(output.pos, proj);
 
     return output;
 }

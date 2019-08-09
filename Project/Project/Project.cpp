@@ -4,6 +4,8 @@
 #include "stdafx.h"
 #include "Project.h"
 
+#include <iostream>
+
 #include <d3d11.h>
 #include <DirectXMath.h>
 #pragma comment(lib, "d3d11.lib")
@@ -15,10 +17,10 @@ using namespace DirectX;
 
 #define MAX_LOADSTRING 100
 
-// Global Variables:
-HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
-WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+#define MAX_DLIGHTS 3
+#define MAX_PLIGHTS 3
+#define MAX_SLIGHTS 3
+#define MAX_INSTANCES 5
 
 /* KEY
 g_ : global
@@ -26,93 +28,101 @@ p_ : pointer
 S_ : struct
 */
 
-#define MAX_DLIGHTS 3
-#define MAX_PLIGHTS 3
-#define MAX_SLIGHTS 3
-#define MAX_INSTANCES 5
-
-ID3D11Device*					g_p_device = nullptr;				//released
-IDXGISwapChain*					g_p_swapChain = nullptr;			//released
-ID3D11DeviceContext*			g_p_deviceContext = nullptr;		//released
-ID3D11RenderTargetView*			g_p_renderTargetView = nullptr;		//released
-D3D11_VIEWPORT					g_viewport;
-// input layout
-ID3D11InputLayout*				g_p_vertexLayout = nullptr;			//released
-// vertex/index buffers
-// TEST MESH
-ID3D11Buffer*					g_p_vBufferTestMesh = nullptr;		//released
-ID3D11Buffer*					g_p_iBufferTestMesh = nullptr;		//released
-UINT							g_numVertsTestMesh = 0;
-UINT							g_numIndsTestMesh = 0;
-// constant buffers
-ID3D11Buffer*					g_p_cBufferVS = nullptr;			//released
-ID3D11Buffer*					g_p_cBufferPS = nullptr;			//released
-// vertex shaders
-ID3D11VertexShader*				g_p_VS = nullptr;					//released
-// pixel shaders
-ID3D11PixelShader*				g_p_PS = nullptr;					//released
-
-// matrices
-XMFLOAT4X4						g_wrld;
-XMFLOAT4X4						g_view;
-XMFLOAT4X4						g_proj;
-
-XMFLOAT4X4						g_wrldTestMesh;
-
-// camera values
-float							g_camMoveSpeed = 0.25f;
-float							g_camRotSpeed = 0.1f;
-float							g_camZoomSpeed = 0.005f;
-float							g_camZoom = 1.0f;
-const float						g_camZoomMin = 1.5f;
-const float						g_camZoomMax = 0.5f;
-
 struct S_VERTEX
 {
-	XMFLOAT4	pos;
-	XMFLOAT4	color;
-	XMFLOAT3	norm;
-	XMFLOAT3	tex;
+	XMFLOAT4	pos;	//16B
+	XMFLOAT4	color;	//16B
+	XMFLOAT3	norm;	//12B
+	XMFLOAT3	tex;	//12B
 };
 
 struct S_DLIGHT
 {
-	XMFLOAT4	dir;
-	XMFLOAT4	color;
+	XMFLOAT4	dir;	//16B
+	XMFLOAT4	color;	//16B
 };
 
 struct S_PLIGHT
 {
-	XMFLOAT4	pos;
-	XMFLOAT4	color;
-	float		range;
-	XMFLOAT3	atten;
+	XMFLOAT4	pos;	//16B
+	XMFLOAT4	color;	//16B
+	FLOAT		range;	//4B
+	XMFLOAT3	atten;	//12B
 };
 
 struct S_SLIGHT
 {
-
+	XMFLOAT4	pos;	//16B
+	XMFLOAT4	color;	//16B
+	XMFLOAT3	dir;	//12B
+	FLOAT		range;	//4B
+	FLOAT		cone;	//4B
+	XMFLOAT3	atten;	//12B
 };
 
 struct S_CBUFFER_VS
 {
-	XMMATRIX	world;
-	XMMATRIX	view;
-	XMMATRIX	projection;
-	XMFLOAT4	instanceOffsets[MAX_INSTANCES];
-	float		t;
+	XMMATRIX	wrld;							//64B
+	XMMATRIX	view;							//64B
+	XMMATRIX	proj;							//64B
+	XMMATRIX	instanceOffsets[MAX_INSTANCES];	//66B * MAX_INSTANCES
+	FLOAT		t;								//4B
+	XMFLOAT3	pad;							//12B
 };
 
 struct S_CBUFFER_PS
 {
-	XMFLOAT4	ambientColor;
-	XMFLOAT4	solidColor;
-	XMFLOAT4	instanceColors[MAX_INSTANCES];
-	S_DLIGHT	dLights[MAX_DLIGHTS];
-	S_PLIGHT	pLights[MAX_PLIGHTS];
-	S_SLIGHT	sLights[MAX_SLIGHTS];
-	float		t;
+	XMFLOAT4	ambientColor;					//16B
+	XMFLOAT4	instanceColors[MAX_INSTANCES];	//16B * MAX_INSTANCES
+	S_DLIGHT	dLights[MAX_DLIGHTS];			//32B * MAX_DLIGHTS
+	S_PLIGHT	pLights[MAX_PLIGHTS];			//48B * MAX_PLIGHTS
+	S_SLIGHT	sLights[MAX_SLIGHTS];			//64B * MAX_SLIGHTS
+	FLOAT		t;								//4B
+	XMFLOAT3	pad;							//12B
 };
+
+HINSTANCE					g_hInst = nullptr;							// current instance
+HWND						g_hWnd = nullptr;							// the window
+WCHAR						g_szTitle[MAX_LOADSTRING];					// the title bar text
+WCHAR						g_szWindowClass[MAX_LOADSTRING];			// the main window class name
+
+// D3D vars
+D3D_DRIVER_TYPE				g_driverType = D3D_DRIVER_TYPE_NULL;
+D3D_FEATURE_LEVEL			g_featureLevel = D3D_FEATURE_LEVEL_11_0;
+ID3D11Device*				g_p_device = nullptr;						//released
+IDXGISwapChain*				g_p_swapChain = nullptr;					//released
+ID3D11DeviceContext*		g_p_deviceContext = nullptr;				//released
+ID3D11RenderTargetView*		g_p_renderTargetView = nullptr;				//released
+D3D11_VIEWPORT				g_viewport;
+// input layout
+ID3D11InputLayout*			g_p_vertexLayout = nullptr;					//released
+// vertex/index buffers
+// TEST MESH
+ID3D11Buffer*				g_p_vBufferTestMesh = nullptr;				//released
+ID3D11Buffer*				g_p_iBufferTestMesh = nullptr;				//released
+UINT						g_numVertsTestMesh = 0;
+UINT						g_numIndsTestMesh = 0;
+// constant buffers
+ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
+ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
+// vertex shaders
+ID3D11VertexShader*			g_p_VS = nullptr;							//released
+// pixel shaders
+ID3D11PixelShader*			g_p_PS = nullptr;							//released
+
+// matrices
+XMFLOAT4X4					g_wrld;
+XMFLOAT4X4					g_view;
+XMFLOAT4X4					g_proj;
+XMFLOAT4X4					g_wrldTestMesh;
+
+// camera values
+FLOAT						g_camMoveSpeed = 3.0f;
+FLOAT						g_camRotSpeed = 0.1f;
+FLOAT						g_camZoomSpeed = 0.005f;
+FLOAT						g_camZoom = 1.0f;
+const FLOAT					g_camZoomMin = 0.5f;
+const FLOAT					g_camZoomMax = 2.0f;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -133,8 +143,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// TODO: Place code here.
 
 	// Initialize global strings
-	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-	LoadStringW(hInstance, IDC_PROJECT, szWindowClass, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDS_APP_TITLE, g_szTitle, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDC_PROJECT, g_szWindowClass, MAX_LOADSTRING);
 	MyRegisterClass(hInstance);
 
 	// Perform application initialization:
@@ -189,7 +199,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_PROJECT);
-	wcex.lpszClassName = szWindowClass;
+	wcex.lpszClassName = g_szWindowClass;
 	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
 	return RegisterClassExW(&wcex);
@@ -207,21 +217,21 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-	hInst = hInstance; // Store instance handle in our global variable
+	g_hInst = hInstance; // Store instance handle in our global variable
 
-	HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX, // XOR with thickframe prevents click & drag resize, XOR with maximizebox prevents control button resize
+	g_hWnd = CreateWindowW(g_szWindowClass, g_szTitle, WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX, // XOR with thickframe prevents click & drag resize, XOR with maximizebox prevents control button resize
 		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-	if (!hWnd)
+	if (!g_hWnd)
 	{
 		return FALSE;
 	}
 
-	ShowWindow(hWnd, nCmdShow);
-	UpdateWindow(hWnd);
+	ShowWindow(g_hWnd, nCmdShow);
+	UpdateWindow(g_hWnd);
 
 	RECT windowRect;
-	GetClientRect(hWnd, &windowRect);
+	GetClientRect(g_hWnd, &windowRect);
 	UINT windowWidth = windowRect.right - windowRect.left;
 	UINT windowHeight = windowRect.bottom - windowRect.top;
 
@@ -229,10 +239,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	HRESULT hr;
 
 	// swap chain
-	DXGI_SWAP_CHAIN_DESC swapChainDesc;
-	ZeroMemory(&swapChainDesc, sizeof(DXGI_SWAP_CHAIN_DESC));							// clear descriptor values to null
+	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
 	swapChainDesc.BufferCount = 1;														// number of buffers in swap chain
-	swapChainDesc.OutputWindow = hWnd;
+	swapChainDesc.OutputWindow = g_hWnd;
 	swapChainDesc.Windowed = true;
 	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 	swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;						// pixel format
@@ -240,24 +249,28 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	swapChainDesc.BufferDesc.Height = windowHeight;
 	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;						// buffer usage flag; specifies what swap chain's buffer will be used for
 	swapChainDesc.SampleDesc.Count = 1;													// samples per pixel while drawing
+	UINT createDeviceFlags = 0;
+#ifdef _DEBUG
+	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
 
-	D3D_FEATURE_LEVEL dx11 = D3D_FEATURE_LEVEL_11_0;									// DirectX feature level to use
 	hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL,
-		D3D11_CREATE_DEVICE_DEBUG, &dx11, 1, D3D11_SDK_VERSION, &swapChainDesc,
-		&g_p_swapChain, &g_p_device, 0, &g_p_deviceContext);
+		createDeviceFlags, &g_featureLevel, 1, D3D11_SDK_VERSION,
+		&swapChainDesc, &g_p_swapChain, &g_p_device, 0, &g_p_deviceContext);
 
-	// render target view
-	ID3D11Resource* backBuffer;
+	// create render target view
+	ID3D11Resource* backBuffer = nullptr;
 	hr = g_p_swapChain->GetBuffer(0, __uuidof(backBuffer), (void**)&backBuffer);		// get buffer from swap chain
-	hr = g_p_device->CreateRenderTargetView(backBuffer, NULL, &g_p_renderTargetView);	// use buffer to create render target view
+	hr = g_p_device->CreateRenderTargetView(backBuffer, nullptr,						// use buffer to create render target view
+		&g_p_renderTargetView);
 	backBuffer->Release();
 
-	// viewport
-	g_viewport.Width = (float)windowWidth;
-	g_viewport.Height = (float)windowHeight;
+	// setup viewport
+	g_viewport.Width = (FLOAT)windowWidth;
+	g_viewport.Height = (FLOAT)windowHeight;
 	g_viewport.TopLeftX = 0;
 	g_viewport.TopLeftX = 0;
-	g_viewport.MinDepth = 0.0f; // exponential depth; near/far planes are handled in projection matrix
+	g_viewport.MinDepth = 0.0f;															// exponential depth; near/far planes are handled in projection matrix
 	g_viewport.MaxDepth = 1.0f;
 	
 	// SHADERS ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -266,6 +279,20 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// pixel shaders
 	hr = g_p_device->CreatePixelShader(PS, sizeof(PS), nullptr, &g_p_PS);
 	// SHADERS ----------------------------------------------------------------------------------------------------
+
+	// create input layout
+	D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	UINT numInputElements = ARRAYSIZE(inputElementDesc);
+	hr = g_p_device->CreateInputLayout(inputElementDesc, numInputElements, VS, sizeof(VS), &g_p_vertexLayout);
+
+	// set input layout
+	g_p_deviceContext->IASetInputLayout(g_p_vertexLayout);
 
 	// MESHES ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	// test mesh
@@ -288,30 +315,26 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	g_numIndsTestMesh = ARRAYSIZE(testMeshInds);
 
 	// setup test mesh vertex buffer
-	D3D11_BUFFER_DESC bufferDesc;
-	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	D3D11_BUFFER_DESC bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVertsTestMesh;
-	bufferDesc.CPUAccessFlags = 0;
-	bufferDesc.MiscFlags = 0;
-	bufferDesc.StructureByteStride = 0;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
 
-	D3D11_SUBRESOURCE_DATA subData;
-	ZeroMemory(&subData, sizeof(subData));
+	D3D11_SUBRESOURCE_DATA subData = {};
 	subData.pSysMem = testMeshVerts;
 
 	// create test mesh vertex buffer
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBufferTestMesh);
 
 	// setup test mesh index buffer
-	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(int) * g_numIndsTestMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 
-	ZeroMemory(&subData, sizeof(subData));
+	subData = {};
 	subData.pSysMem = testMeshInds;
 
 	// create test mesh index buffer
@@ -321,43 +344,36 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&g_wrldTestMesh, XMMatrixIdentity());
 	// MESHES ----------------------------------------------------------------------------------------------------
 
+	//_RPTN(0, "FLOAT			: %d\n", sizeof(FLOAT));
+	//_RPTN(0, "XMFLOAT4		: %d\n", sizeof(XMFLOAT4));
+	//_RPTN(0, "XMVECTOR		: %d\n", sizeof(XMVECTOR));
+	//_RPTN(0, "XMFLOAT4X4		: %d\n", sizeof(XMFLOAT4X4));
+	//_RPTN(0, "XMMATRIX		: %d\n", sizeof(XMMATRIX));
+	//_RPTN(0, "S_DLIGHT		: %d\n", sizeof(S_DLIGHT));
+	//_RPTN(0, "S_PLIGHT		: %d\n", sizeof(S_PLIGHT));
+	//_RPTN(0, "S_SLIGHT		: %d\n", sizeof(S_SLIGHT));
+	//_RPTN(0, "S_CBUFFER_VS	: %d\n", sizeof(S_CBUFFER_VS));
+	//_RPTN(0, "S_CBUFFER_PS	: %d\n", sizeof(S_CBUFFER_PS));
+
 	// setup VS constant buffer
-	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
-	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(S_CBUFFER_VS);
-	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	bufferDesc.MiscFlags = 0;
-	bufferDesc.StructureByteStride = 0;
 	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	// create VS constant buffer
 	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferVS);
 
 	// setup PS constant buffer
-	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
-	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(S_CBUFFER_PS);
-	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	bufferDesc.MiscFlags = 0;
-	bufferDesc.StructureByteStride = 0;
 	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
 	// create PS constant buffer
 	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferPS);
-
-	// create input layout
-	D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 32, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 44, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-	};
-	UINT numInputElements = ARRAYSIZE(inputElementDesc);
-	hr = g_p_device->CreateInputLayout(inputElementDesc, numInputElements, VS, sizeof(VS), &g_p_vertexLayout);
-
-	// set input layout
-	g_p_deviceContext->IASetInputLayout(g_p_vertexLayout);
 
 	// MATRICES ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
@@ -368,7 +384,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMMATRIX view = XMMatrixLookAtLH(eye, at, up);
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
 
-	
+	XMStoreFloat4x4(&g_proj, XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f));
 	// MATRICES ----------------------------------------------------------------------------------------------------
 
 
@@ -396,7 +412,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wmId)
 		{
 		case IDM_ABOUT:
-			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+			DialogBox(g_hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
 		case IDM_EXIT:
 			DestroyWindow(hWnd);
@@ -444,44 +460,51 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 void Render()
-{	
-	float clearColor[4] = { 0, 0, 0.25f, 1 };
-	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);		// clear render target view
+{
+	// update time
+	static ULONGLONG timeStart = 0;
+	static ULONGLONG timePrev = 0;
+	ULONGLONG timeCur = GetTickCount64();
+	if (timeStart == 0)
+		timeStart = timeCur;
+	static float t = (timeCur - timeStart) / 1000.0f;
+	float dt = (timeCur - timePrev) / 1000.0f;
+	timePrev = timeCur;
 
-	// OUTPUT MERGER
-	// set render target view
-	ID3D11RenderTargetView* p_tempRTV[] = { g_p_renderTargetView };					// temporarily convert render target view to array while setting RTV
-	g_p_deviceContext->OMSetRenderTargets(1, p_tempRTV, nullptr);					// TODO: replace 3rd arg(nullptr) with zbuffer / depth stencil view
-	// RASTERIZER
-	g_p_deviceContext->RSSetViewports(1, &g_viewport);								// set viewport
-	// INPUT ASSEMBLER
-	ID3D11Buffer* vBuffer[] = { g_p_vBufferTestMesh };								// changeable pointers; allows changing buffers without dealing with D3D11 device
-	ID3D11Buffer* iBuffer[] = { g_p_iBufferTestMesh };
+	HRESULT hr;
 	UINT strides[] = { sizeof(S_VERTEX) };
 	UINT offsets[] = { 0 };
-	g_p_deviceContext->IASetVertexBuffers(0, 1, vBuffer, strides, offsets);			// set vertex buffer
-	g_p_deviceContext->IASetIndexBuffer(*iBuffer, DXGI_FORMAT_R32_UINT, 0);			// set index buffer
-	g_p_deviceContext->IASetPrimitiveTopology(
-		D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);										// set type of topology to draw
-	// VERTEX SHADER
-	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// PIXEL SHADER
-	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+
+	// get window dimensions
+	RECT windowRect;
+	GetClientRect(g_hWnd, &windowRect);
+	UINT windowWidth = windowRect.right - windowRect.left;
+	UINT windowHeight = windowRect.bottom - windowRect.top;
+
+	// create shader constant buffers
+	S_CBUFFER_VS cBufferVS = {};
+	S_CBUFFER_PS cBufferPS = {};
+
+	// retrieve matrices
+	XMMATRIX wrld = XMLoadFloat4x4(&g_wrld);
+	XMMATRIX view = XMLoadFloat4x4(&g_view);
+	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
+	XMMATRIX wrldTestMesh = XMLoadFloat4x4(&g_wrldTestMesh);
 
 	// update camera
 	// position
 	if (GetAsyncKeyState('S'))
-		;
+		view = view * XMMatrixTranslation(0, 0, -1 * g_camMoveSpeed * dt);
 	if (GetAsyncKeyState('W'))
-		;
+		view = view * XMMatrixTranslation(0, 0, g_camMoveSpeed * dt);
 	if (GetAsyncKeyState('A'))
-		;
+		view = view * XMMatrixTranslation(-1 * g_camMoveSpeed * dt, 0, 0);
 	if (GetAsyncKeyState('D'))
-		;
+		view = view * XMMatrixTranslation(g_camMoveSpeed * dt, 0, 0);
 	if (GetAsyncKeyState(VK_LSHIFT))
-		;
+		view = view * XMMatrixTranslation(0, -1 * g_camMoveSpeed * dt, 0);
 	if (GetAsyncKeyState(VK_SPACE))
-		;
+		view = view * XMMatrixTranslation(0, g_camMoveSpeed * dt, 0);
 
 	// rotation
 	if (GetAsyncKeyState(VK_DOWN))
@@ -494,27 +517,71 @@ void Render()
 		;
 
 	// zoom
-	if (GetAsyncKeyState(','))
+	if (GetAsyncKeyState(VK_OEM_MINUS))
 	{
-		g_camZoom += g_camMoveSpeed;
-		if (g_camZoom > g_camZoomMin)
+		g_camZoom -= g_camMoveSpeed * dt;
+		if (g_camZoom < g_camZoomMin)
 			g_camZoom = g_camZoomMin;
 	}
-	if (GetAsyncKeyState('.'))
+	if (GetAsyncKeyState(VK_OEM_PLUS))
 	{
-		g_camZoom -= g_camMoveSpeed;
-		if (g_camZoom < g_camZoomMax)
+		g_camZoom += g_camMoveSpeed * dt;
+		if (g_camZoom > g_camZoomMax)
 			g_camZoom = g_camZoomMax;
 	}
+	if (GetAsyncKeyState(VK_BACK))
+		g_camZoom = 1.0f;
 
-	//g_proj = etc
+	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f);
+
+	float clearColor[4] = { 0, 0, 0.25f, 1 };
+	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);		// clear render target view
+
+	// INPUT ASSEMBLER
+	g_p_deviceContext->IASetPrimitiveTopology(
+		D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);										// set type of topology to draw
+	// RASTERIZER
+	g_p_deviceContext->RSSetViewports(1, &g_viewport);								// set viewport
+	// OUTPUT MERGER
+	// set render target view
+	ID3D11RenderTargetView* p_tempRTV[] = { g_p_renderTargetView };					// temporarily convert render target view to array while setting RTV
+	g_p_deviceContext->OMSetRenderTargets(1, p_tempRTV, nullptr);					// TODO: replace 3rd arg(nullptr) with zbuffer / depth stencil view
+
+
+	// setup test mesh for draw
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBufferTestMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBufferTestMesh, DXGI_FORMAT_R32_UINT, 0);
+
+	cBufferVS.wrld = XMMatrixTranspose(wrldTestMesh);
+	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
+	cBufferVS.proj = XMMatrixTranspose(proj);
+
+	D3D11_MAPPED_SUBRESOURCE gpuBufferVS;
+	hr = g_p_deviceContext->Map(g_p_cBufferVS, 0, D3D11_MAP_WRITE_DISCARD, 0,
+		&gpuBufferVS);
+	*((S_CBUFFER_VS*)gpuBufferVS.pData) = cBufferVS;
+	//memcpy(gpuBuffer.pData, &cBufferVS, sizeof(S_CBUFFER_VS));
+	g_p_deviceContext->Unmap(g_p_cBufferVS, 0);
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+
+	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->PSSetConstantBuffers(0, 1, &g_p_cBufferPS);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 
 	// draw test mesh
-	//g_p_deviceContext->Draw(NUM_TEST_VERTS, 0);
+	//g_p_deviceContext->Draw(g_numVertsTestMesh, 0);
 	g_p_deviceContext->DrawIndexed(g_numIndsTestMesh, 0, 0);
 
 
 	g_p_swapChain->Present(1, 0);													// present back buffer; change args to limit/sync framerate
+
+	// store matrices
+	XMStoreFloat4x4(&g_wrld, wrld);
+	XMStoreFloat4x4(&g_view, view);
+	XMStoreFloat4x4(&g_proj, proj);
+	XMStoreFloat4x4(&g_wrldTestMesh, wrldTestMesh);
 }
 
 void Cleanup()
