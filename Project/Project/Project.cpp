@@ -22,6 +22,8 @@ using namespace DirectX;
 #define MAX_SLIGHTS 3
 #define MAX_INSTANCES 5
 
+#define DEGTORAD(deg) (deg * (XM_2PI / 180.0f))
+
 /* KEY
 g_ : global
 p_ : pointer
@@ -117,9 +119,9 @@ XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_wrldTestMesh;
 
 // camera values
-FLOAT						g_camMoveSpeed = 3.0f;
-FLOAT						g_camRotSpeed = 0.1f;
-FLOAT						g_camZoomSpeed = 0.005f;
+FLOAT						g_camMoveSpeed = 3.0f;		// units per second
+FLOAT						g_camRotSpeed = 30.0f;		// degrees per second
+FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
 FLOAT						g_camZoom = 1.0f;
 const FLOAT					g_camZoomMin = 0.5f;
 const FLOAT					g_camZoomMax = 2.0f;
@@ -354,25 +356,24 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	//_RPTN(0, "S_SLIGHT		: %d\n", sizeof(S_SLIGHT));
 	//_RPTN(0, "S_CBUFFER_VS	: %d\n", sizeof(S_CBUFFER_VS));
 	//_RPTN(0, "S_CBUFFER_PS	: %d\n", sizeof(S_CBUFFER_PS));
-
-	// setup VS constant buffer
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_CBUFFER_VS);
-	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
-	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+	
+	// set type of topology to draw
+	g_p_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);										
 
 	// create VS constant buffer
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(S_CBUFFER_VS);
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
 	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferVS);
 
-	// setup PS constant buffer
+	// create PS constant buffer
 	bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(S_CBUFFER_PS);
-	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-	// create PS constant buffer
+	bufferDesc.CPUAccessFlags = 0;
 	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferPS);
 
 	// MATRICES ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -471,15 +472,15 @@ void Render()
 	float dt = (timeCur - timePrev) / 1000.0f;
 	timePrev = timeCur;
 
-	HRESULT hr;
-	UINT strides[] = { sizeof(S_VERTEX) };
-	UINT offsets[] = { 0 };
-
 	// get window dimensions
 	RECT windowRect;
 	GetClientRect(g_hWnd, &windowRect);
 	UINT windowWidth = windowRect.right - windowRect.left;
 	UINT windowHeight = windowRect.bottom - windowRect.top;
+
+	// set byte strides and offsets
+	UINT strides[] = { sizeof(S_VERTEX) };
+	UINT offsets[] = { 0 };
 
 	// create shader constant buffers
 	S_CBUFFER_VS cBufferVS = {};
@@ -493,28 +494,38 @@ void Render()
 
 	// update camera
 	// position
-	if (GetAsyncKeyState('S'))
-		view = view * XMMatrixTranslation(0, 0, -1 * g_camMoveSpeed * dt);
 	if (GetAsyncKeyState('W'))
-		view = view * XMMatrixTranslation(0, 0, g_camMoveSpeed * dt);
-	if (GetAsyncKeyState('A'))
-		view = view * XMMatrixTranslation(-1 * g_camMoveSpeed * dt, 0, 0);
+		view = XMMatrixTranslation(0, 0, g_camMoveSpeed * dt) * view;
+	if (GetAsyncKeyState('S'))
+		view = XMMatrixTranslation(0, 0, -1 * g_camMoveSpeed * dt) * view;
 	if (GetAsyncKeyState('D'))
-		view = view * XMMatrixTranslation(g_camMoveSpeed * dt, 0, 0);
-	if (GetAsyncKeyState(VK_LSHIFT))
-		view = view * XMMatrixTranslation(0, -1 * g_camMoveSpeed * dt, 0);
+		view = XMMatrixTranslation(g_camMoveSpeed * dt, 0, 0) * view;
+	if (GetAsyncKeyState('A'))
+		view = XMMatrixTranslation(-1 * g_camMoveSpeed * dt, 0, 0) * view;
 	if (GetAsyncKeyState(VK_SPACE))
-		view = view * XMMatrixTranslation(0, g_camMoveSpeed * dt, 0);
+		view = XMMatrixTranslation(0, g_camMoveSpeed * dt, 0) * view;
+	if (GetAsyncKeyState(VK_LSHIFT))
+		view = XMMatrixTranslation(0, -1 * g_camMoveSpeed * dt, 0) * view;
 
 	// rotation
 	if (GetAsyncKeyState(VK_DOWN))
-		;
+		view = XMMatrixRotationX(DEGTORAD(g_camRotSpeed) * dt) * view;
 	if (GetAsyncKeyState(VK_UP))
-		;
+		view = XMMatrixRotationX(-1 * DEGTORAD(g_camRotSpeed) * dt) * view;
 	if (GetAsyncKeyState(VK_LEFT))
-		;
+	{
+		XMVECTOR trans = view.r[3];
+		view = view * XMMatrixTranslationFromVector(-1 * trans);
+		view = view * XMMatrixRotationY(-1 * DEGTORAD(g_camRotSpeed) * dt);
+		view = view * XMMatrixTranslationFromVector(trans);
+	}
 	if (GetAsyncKeyState(VK_RIGHT))
-		;
+	{
+		XMVECTOR trans = view.r[3];
+		view = view * XMMatrixTranslationFromVector(-1 * trans);
+		view = view * XMMatrixRotationY(DEGTORAD(g_camRotSpeed) * dt);
+		view = view * XMMatrixTranslationFromVector(trans);
+	}
 
 	// zoom
 	if (GetAsyncKeyState(VK_OEM_MINUS))
@@ -533,13 +544,14 @@ void Render()
 		g_camZoom = 1.0f;
 
 	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f);
+	
+	//--------------------------------------------------
+	// DRAWING
+	//--------------------------------------------------
 
 	float clearColor[4] = { 0, 0, 0.25f, 1 };
 	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);		// clear render target view
 
-	// INPUT ASSEMBLER
-	g_p_deviceContext->IASetPrimitiveTopology(
-		D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);										// set type of topology to draw
 	// RASTERIZER
 	g_p_deviceContext->RSSetViewports(1, &g_viewport);								// set viewport
 	// OUTPUT MERGER
@@ -548,30 +560,24 @@ void Render()
 	g_p_deviceContext->OMSetRenderTargets(1, p_tempRTV, nullptr);					// TODO: replace 3rd arg(nullptr) with zbuffer / depth stencil view
 
 
+	XMMATRIX rotate = XMMatrixRotationY(0.5f * dt);
+
 	// setup test mesh for draw
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBufferTestMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBufferTestMesh, DXGI_FORMAT_R32_UINT, 0);
 
+	wrldTestMesh = wrldTestMesh * rotate;
 	cBufferVS.wrld = XMMatrixTranspose(wrldTestMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	cBufferVS.proj = XMMatrixTranspose(proj);
-
-	D3D11_MAPPED_SUBRESOURCE gpuBufferVS;
-	hr = g_p_deviceContext->Map(g_p_cBufferVS, 0, D3D11_MAP_WRITE_DISCARD, 0,
-		&gpuBufferVS);
-	*((S_CBUFFER_VS*)gpuBufferVS.pData) = cBufferVS;
-	//memcpy(gpuBuffer.pData, &cBufferVS, sizeof(S_CBUFFER_VS));
-	g_p_deviceContext->Unmap(g_p_cBufferVS, 0);
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-
 	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	g_p_deviceContext->PSSetConstantBuffers(0, 1, &g_p_cBufferPS);
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
-
 	// draw test mesh
-	//g_p_deviceContext->Draw(g_numVertsTestMesh, 0);
 	g_p_deviceContext->DrawIndexed(g_numIndsTestMesh, 0, 0);
 
 

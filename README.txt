@@ -1,8 +1,11 @@
 CAMERA CONTROLS
 --------------------------------------------------
-W/S					: Forward/back
-A/D					: Left/right
-SPACE/LSHIFT	: Up/down
+W/S					: Move forward/back
+A/D					: Move left/right
+SPACE/LSHIFT	: Move up/down
+
+UP/DOWN			: Look up/down
+LEFT/RIGHT		: Look left/right
 
 +/-					: Zoom in/out
 BACKSPACE		: Reset zoom
