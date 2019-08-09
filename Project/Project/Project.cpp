@@ -31,33 +31,41 @@ S_ : struct
 #define MAX_SLIGHTS 3
 #define MAX_INSTANCES 5
 
-ID3D11Device*						g_p_device = nullptr;				//released
-IDXGISwapChain*						g_p_swapChain = nullptr;			//released
-ID3D11DeviceContext*				g_p_deviceContext = nullptr;		//released
-ID3D11RenderTargetView*				g_p_renderTargetView = nullptr;		//released
-D3D11_VIEWPORT						g_viewport;
+ID3D11Device*					g_p_device = nullptr;				//released
+IDXGISwapChain*					g_p_swapChain = nullptr;			//released
+ID3D11DeviceContext*			g_p_deviceContext = nullptr;		//released
+ID3D11RenderTargetView*			g_p_renderTargetView = nullptr;		//released
+D3D11_VIEWPORT					g_viewport;
 // input layout
-ID3D11InputLayout*					g_p_vertexLayout = nullptr;			//released
-// vertex/index buffers (meshes)
+ID3D11InputLayout*				g_p_vertexLayout = nullptr;			//released
+// vertex/index buffers
 // TEST MESH
-ID3D11Buffer*						g_p_vBufferTestMesh = nullptr;		//released
-ID3D11Buffer*						g_p_iBufferTestMesh = nullptr;		//released
-UINT								g_numVertsTestMesh = 0;
-UINT								g_numIndsTestMesh = 0;
+ID3D11Buffer*					g_p_vBufferTestMesh = nullptr;		//released
+ID3D11Buffer*					g_p_iBufferTestMesh = nullptr;		//released
+UINT							g_numVertsTestMesh = 0;
+UINT							g_numIndsTestMesh = 0;
 // constant buffers
-ID3D11Buffer*						g_p_cBufferVS = nullptr;			//released
-ID3D11Buffer*						g_p_cBufferPS = nullptr;			//released
+ID3D11Buffer*					g_p_cBufferVS = nullptr;			//released
+ID3D11Buffer*					g_p_cBufferPS = nullptr;			//released
 // vertex shaders
-ID3D11VertexShader*					g_p_VS = nullptr;					//released
+ID3D11VertexShader*				g_p_VS = nullptr;					//released
 // pixel shaders
-ID3D11PixelShader*					g_p_PS = nullptr;					//released
+ID3D11PixelShader*				g_p_PS = nullptr;					//released
 
 // matrices
-XMFLOAT4X4							g_world;
-XMFLOAT4X4							g_view;
-XMFLOAT4X4							g_projection;
+XMFLOAT4X4						g_wrld;
+XMFLOAT4X4						g_view;
+XMFLOAT4X4						g_proj;
 
-XMFLOAT4X4							g_worldTestMesh;
+XMFLOAT4X4						g_wrldTestMesh;
+
+// camera values
+float							g_camMoveSpeed = 0.25f;
+float							g_camRotSpeed = 0.1f;
+float							g_camZoomSpeed = 0.005f;
+float							g_camZoom = 1.0f;
+const float						g_camZoomMin = 1.5f;
+const float						g_camZoomMax = 0.5f;
 
 struct S_VERTEX
 {
@@ -78,7 +86,7 @@ struct S_PLIGHT
 	XMFLOAT4	pos;
 	XMFLOAT4	color;
 	float		range;
-	XMFLOAT3	attenuation;
+	XMFLOAT3	atten;
 };
 
 struct S_SLIGHT
@@ -88,10 +96,11 @@ struct S_SLIGHT
 
 struct S_CBUFFER_VS
 {
-	XMMATRIX world;
-	XMMATRIX view;
-	XMMATRIX projection;
-	XMVECTOR instanceOffsets[MAX_INSTANCES];
+	XMMATRIX	world;
+	XMMATRIX	view;
+	XMMATRIX	projection;
+	XMFLOAT4	instanceOffsets[MAX_INSTANCES];
+	float		t;
 };
 
 struct S_CBUFFER_PS
@@ -102,6 +111,7 @@ struct S_CBUFFER_PS
 	S_DLIGHT	dLights[MAX_DLIGHTS];
 	S_PLIGHT	pLights[MAX_PLIGHTS];
 	S_SLIGHT	sLights[MAX_SLIGHTS];
+	float		t;
 };
 
 // Forward declarations of functions included in this code module:
@@ -232,18 +242,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	swapChainDesc.SampleDesc.Count = 1;													// samples per pixel while drawing
 
 	D3D_FEATURE_LEVEL dx11 = D3D_FEATURE_LEVEL_11_0;									// DirectX feature level to use
-	hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_DEBUG,
-		&dx11, 1, D3D11_SDK_VERSION, &swapChainDesc, &g_p_swapChain, &g_p_device, 0, &g_p_deviceContext);
+	hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL,
+		D3D11_CREATE_DEVICE_DEBUG, &dx11, 1, D3D11_SDK_VERSION, &swapChainDesc,
+		&g_p_swapChain, &g_p_device, 0, &g_p_deviceContext);
 
 	// render target view
 	ID3D11Resource* backBuffer;
-	hr = g_p_swapChain->GetBuffer(0, __uuidof(backBuffer), (void**)&backBuffer);			// get buffer from swap chain
+	hr = g_p_swapChain->GetBuffer(0, __uuidof(backBuffer), (void**)&backBuffer);		// get buffer from swap chain
 	hr = g_p_device->CreateRenderTargetView(backBuffer, NULL, &g_p_renderTargetView);	// use buffer to create render target view
 	backBuffer->Release();
 
 	// viewport
-	g_viewport.Width = windowWidth;
-	g_viewport.Height = windowHeight;
+	g_viewport.Width = (float)windowWidth;
+	g_viewport.Height = (float)windowHeight;
 	g_viewport.TopLeftX = 0;
 	g_viewport.TopLeftX = 0;
 	g_viewport.MinDepth = 0.0f; // exponential depth; near/far planes are handled in projection matrix
@@ -307,7 +318,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBufferTestMesh);
 
 	// set test mesh initial world matrix
-	XMStoreFloat4x4(&g_worldTestMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrldTestMesh, XMMatrixIdentity());
 	// MESHES ----------------------------------------------------------------------------------------------------
 
 	// setup VS constant buffer
@@ -349,7 +360,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	g_p_deviceContext->IASetInputLayout(g_p_vertexLayout);
 
 	// MATRICES ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	XMStoreFloat4x4(&g_world, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
 
 	XMVECTOR eye = XMVectorSet(0, -2, -10, 0);
 	XMVECTOR at = XMVectorSet(0, 0, 0, 0);
@@ -444,7 +455,7 @@ void Render()
 	// RASTERIZER
 	g_p_deviceContext->RSSetViewports(1, &g_viewport);								// set viewport
 	// INPUT ASSEMBLER
-	ID3D11Buffer* vBuffer[] = { g_p_vBufferTestMesh };										// changeable pointers; allows changing buffers by setting pointer
+	ID3D11Buffer* vBuffer[] = { g_p_vBufferTestMesh };								// changeable pointers; allows changing buffers without dealing with D3D11 device
 	ID3D11Buffer* iBuffer[] = { g_p_iBufferTestMesh };
 	UINT strides[] = { sizeof(S_VERTEX) };
 	UINT offsets[] = { 0 };
@@ -456,6 +467,47 @@ void Render()
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
 	// PIXEL SHADER
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+
+	// update camera
+	// position
+	if (GetAsyncKeyState('S'))
+		;
+	if (GetAsyncKeyState('W'))
+		;
+	if (GetAsyncKeyState('A'))
+		;
+	if (GetAsyncKeyState('D'))
+		;
+	if (GetAsyncKeyState(VK_LSHIFT))
+		;
+	if (GetAsyncKeyState(VK_SPACE))
+		;
+
+	// rotation
+	if (GetAsyncKeyState(VK_DOWN))
+		;
+	if (GetAsyncKeyState(VK_UP))
+		;
+	if (GetAsyncKeyState(VK_LEFT))
+		;
+	if (GetAsyncKeyState(VK_RIGHT))
+		;
+
+	// zoom
+	if (GetAsyncKeyState(','))
+	{
+		g_camZoom += g_camMoveSpeed;
+		if (g_camZoom > g_camZoomMin)
+			g_camZoom = g_camZoomMin;
+	}
+	if (GetAsyncKeyState('.'))
+	{
+		g_camZoom -= g_camMoveSpeed;
+		if (g_camZoom < g_camZoomMax)
+			g_camZoom = g_camZoomMax;
+	}
+
+	//g_proj = etc
 
 	// draw test mesh
 	//g_p_deviceContext->Draw(NUM_TEST_VERTS, 0);
