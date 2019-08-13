@@ -1,12 +1,16 @@
 CAMERA CONTROLS
 --------------------------------------------------
-W/S					: Move forward/back
-A/D					: Move left/right
+W/S				: Move forward/back
+A/D				: Move left/right
 SPACE/LSHIFT	: Move up/down
 
-UP/DOWN			: Look up/down
 LEFT/RIGHT		: Look left/right
+UP/DOWN			: Look up/down
 
-+/-					: Zoom in/out
-BACKSPACE		: Reset zoom
++/-				: Zoom in/out
+
+[/]				: Far plane closer/farther
+;/'				: Near plane closer/farther
+
+BACKSPACE		: Reset zoom, near/far planes
 --------------------------------------------------

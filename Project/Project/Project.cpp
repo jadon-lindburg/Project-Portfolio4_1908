@@ -155,16 +155,24 @@ ID3D11PixelShader*			g_p_PS_SolidColor = nullptr;				//released
 XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
 XMFLOAT4X4					g_proj;
-XMFLOAT4X4					g_wrldTestHardMesh;
+XMFLOAT4X4					g_wrld_TestHardMesh;
 // ----- MATRICES -----
 
 // ----- CAMERAS -----
 FLOAT						g_camMoveSpeed = 4.0f;		// units per second
 FLOAT						g_camRotSpeed = 25.0f;		// degrees per second
 FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
-FLOAT						g_camZoom = 1.0f;
+FLOAT						g_camZoom = 1.0f;			// current zoom level
 const FLOAT					g_camZoomMin = 0.5f;
 const FLOAT					g_camZoomMax = 2.0f;
+FLOAT						g_camNearSpeed = 1.0f;		// near plane move per second
+FLOAT						g_camNearPlane = 0.01f;		// current near plane
+const FLOAT					g_camNearMin = 0.01f;
+const FLOAT					g_camNearMax = 9.0f;
+FLOAT						g_camFarSpeed = 10.0f;		// far plane move per second
+FLOAT						g_camFarPlane = 100.0f;		// current far plane
+const FLOAT					g_camFarMin = 10.0f;
+const FLOAT					g_camFarMax = 100.0f;
 // ----- CAMERAS -----
 // ---------- GLOBAL VARS ----------
 
@@ -426,7 +434,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHardMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
-	XMStoreFloat4x4(&g_wrldTestHardMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
 	// ----- TEST HARDCODED MESH -----
 
 	// ----- TEST OBJ2HEADER MESH -----
@@ -645,7 +653,7 @@ void Render()
 	XMMATRIX wrld = XMLoadFloat4x4(&g_wrld);
 	XMMATRIX view = XMLoadFloat4x4(&g_view);
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
-	XMMATRIX wrldTestHardMesh = XMLoadFloat4x4(&g_wrldTestHardMesh);
+	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
 	// ----- RETRIEVE MATRICES -----
 
 	// ----- UPDATE CAMERA -----
@@ -717,13 +725,42 @@ void Render()
 		if (g_camZoom > g_camZoomMax)
 			g_camZoom = g_camZoomMax;
 	}
-	if (GetAsyncKeyState(VK_BACK)) // reset zoom
+	// --- ZOOM ---
+	// --- NEAR / FAR PLANES ---
+	if (GetAsyncKeyState(VK_OEM_4)) // far plane closer
+	{
+		g_camFarPlane -= g_camFarSpeed * dt;
+		if (g_camFarPlane < g_camFarMin)
+			g_camFarPlane = g_camFarMin;
+	}
+	if (GetAsyncKeyState(VK_OEM_6)) // far plane farther
+	{
+		g_camFarPlane += g_camFarSpeed * dt;
+		if (g_camFarPlane > g_camFarMax)
+			g_camFarPlane = g_camFarMax;
+	}
+	if (GetAsyncKeyState(VK_OEM_1)) // near plane closer
+	{
+		g_camNearPlane -= g_camNearSpeed * dt;
+		if (g_camNearPlane < g_camNearMin)
+			g_camNearPlane = g_camNearMin;
+	}
+	if (GetAsyncKeyState(VK_OEM_7)) // near plane farther
+	{
+		g_camNearPlane += g_camNearSpeed * dt;
+		if (g_camNearPlane > g_camNearMax)
+			g_camNearPlane = g_camNearMax;
+	}
+	// --- NEAR / FAR PLANES ---
+	// reset camera
+	if (GetAsyncKeyState(VK_BACK)) // reset zoom, near / far planes
 	{
 		g_camZoom = 1.0f;
+		g_camNearPlane = 0.01f;
+		g_camFarPlane = 100.0f;
 	}
-	// --- ZOOM ---
 	// update projection matrix with current zoom level
-	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f);
+	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
 	// ----- UPDATE CAMERA -----
 
 	// UPDATES / DRAW SETUP
@@ -792,9 +829,9 @@ void Render()
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrldTestHardMesh = rotate;
+	wrld_TestHardMesh = rotate;
 	// set VS constant buffer values
-	cBufferVS.wrld = XMMatrixTranspose(wrldTestHardMesh);
+	cBufferVS.wrld = XMMatrixTranspose(wrld_TestHardMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	cBufferVS.proj = XMMatrixTranspose(proj);
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
@@ -814,15 +851,15 @@ void Render()
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
 	// mesh position
-	XMMATRIX mat = XMMatrixTranslation(2, -0.5f, 0);
+	XMMATRIX wrld_TestLoadMesh = XMMatrixTranslation(2, -0.5f, 0);
 	//rotate = XMMatrixRotationY(-0.5f * t);
-	//mat = rotate * mat;
+	//wrld_TestLoadMesh = rotate * wrld_TestLoadMesh;
 	// mesh instance offsets
 	instanceOffsets[0] = XMMatrixTranslation(0, 0, 0);
 	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
 	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = XMMatrixTranspose(mat);
+	cBufferVS.wrld = XMMatrixTranspose(wrld_TestLoadMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	cBufferVS.proj = XMMatrixTranspose(proj);
 	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
@@ -851,7 +888,7 @@ void Render()
 	XMStoreFloat4x4(&g_wrld, wrld);
 	XMStoreFloat4x4(&g_view, view);
 	XMStoreFloat4x4(&g_proj, proj);
-	XMStoreFloat4x4(&g_wrldTestHardMesh, wrldTestHardMesh);
+	XMStoreFloat4x4(&g_wrld_TestHardMesh, wrld_TestHardMesh);
 	// ----- STORE MATRICES -----
 
 	// STORE VARS
