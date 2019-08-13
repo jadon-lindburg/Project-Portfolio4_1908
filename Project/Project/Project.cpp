@@ -159,8 +159,8 @@ XMFLOAT4X4					g_wrldTestHardMesh;
 // ----- MATRICES -----
 
 // ----- CAMERAS -----
-FLOAT						g_camMoveSpeed = 3.0f;		// units per second
-FLOAT						g_camRotSpeed = 30.0f;		// degrees per second
+FLOAT						g_camMoveSpeed = 4.0f;		// units per second
+FLOAT						g_camRotSpeed = 25.0f;		// degrees per second
 FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
 FLOAT						g_camZoom = 1.0f;
 const FLOAT					g_camZoomMin = 0.5f;
@@ -385,25 +385,25 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ---------- MESHES ----------
 	// ----- TEST HARDCODED MESH -----
 	// --- VERTEX BUFFER DATA ---
-	S_VERTEX vertsTestHardMesh[] =
+	S_VERTEX verts_TestHardMesh[] =
 	{
 		// pos, norm, tex, color
-		{ { 0, -0.5f, -0.5f, 1 }, { 0, 0, -1 }, { 0, 0, 0 }, { 0, 0, 1, 1} }, // bottom front
-		{ { 0.5f, -0.5f, 0.5f, 1 }, { 0.5f, 0, 0.5f }, { 0, 0, 0 }, { 0, 1, 0, 1} }, // bottom back right
-		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.5f, 0, 0.5f }, { 0, 0, 0 }, { 1, 0, 0, 1} }, // bottom back left
+		{ { 0, -0.5f, -0.5f, 1 }, { 0, -0.5f, -0.5f }, { 0, 0, 0 }, { 0, 0, 1, 1} }, // bottom front
+		{ { 0.5f, -0.5f, 0.5f, 1 }, { 0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 0, 1, 0, 1} }, // bottom back right
+		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 1, 0, 0, 1} }, // bottom back left
 		{ { 0, 0.5f, 0, 1 }, { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 1, 1} } // top
 	};
-	g_numVerts_TestHardMesh = ARRAYSIZE(vertsTestHardMesh);
+	g_numVerts_TestHardMesh = ARRAYSIZE(verts_TestHardMesh);
 	// --- VERTEX BUFFER DATA ---
 	// --- INDEX BUFFER DATA ---
-	int indsTestHardMesh[] =
+	int inds_TestHardMesh[] =
 	{
 		0, 1, 2, // bottom
 		3, 0, 2, // front left
 		3, 1, 0, // front right
 		3, 2, 1	 // back
 	};
-	g_numInds_TestHardMesh = ARRAYSIZE(indsTestHardMesh);
+	g_numInds_TestHardMesh = ARRAYSIZE(inds_TestHardMesh);
 	// --- INDEX BUFFER DATA ---
 	// --- CREATE VERTEX BUFFER ---
 	D3D11_BUFFER_DESC bufferDesc = {};
@@ -412,7 +412,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	D3D11_SUBRESOURCE_DATA subData = {};
-	subData.pSysMem = vertsTestHardMesh;
+	subData.pSysMem = verts_TestHardMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestHardMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
@@ -422,7 +422,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = indsTestHardMesh;
+	subData.pSysMem = inds_TestHardMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHardMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
@@ -434,8 +434,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// get number of verts
 	g_numVerts_TestLoadMesh = ARRAYSIZE(heavenTorch_data);
 	// store verts
-	S_VERTEX* vertsTestLoadMesh = new S_VERTEX[g_numVerts_TestLoadMesh];
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, vertsTestLoadMesh);
+	S_VERTEX* verts_TestLoadMesh = new S_VERTEX[g_numVerts_TestLoadMesh];
+	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, verts_TestLoadMesh);
 	// --- CONVERT VERTEX DATA ---
 	// get number of inds
 	g_numInds_TestLoadMesh = ARRAYSIZE(heavenTorch_indicies);
@@ -446,7 +446,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = vertsTestLoadMesh;
+	subData.pSysMem = verts_TestLoadMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
@@ -460,7 +460,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
 	// clear temp memory
-	delete[] vertsTestLoadMesh;
+	delete[] verts_TestLoadMesh;
 	// ----- TEST OBJ2HEADER MESH -----
 	// ---------- MESHES ----------
 
@@ -505,7 +505,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	//_RPTN(0, "XMVECTOR		: %d\n", sizeof(XMVECTOR));
 	//_RPTN(0, "XMFLOAT4X4		: %d\n", sizeof(XMFLOAT4X4));
 	//_RPTN(0, "XMMATRIX		: %d\n", sizeof(XMMATRIX));
-	//_RPTN(0, "S_LIGHT		: %d\n", sizeof(S_LIGHT));
+	//_RPTN(0, "S_LIGHT_DIR		: %d\n", sizeof(S_LIGHT_DIR));
+	//_RPTN(0, "S_LIGHT_PNT		: %d\n", sizeof(S_LIGHT_PNT));
+	//_RPTN(0, "S_LIGHT_SPT		: %d\n", sizeof(S_LIGHT_SPT));
 	//_RPTN(0, "S_CBUFFER_VS	: %d\n", sizeof(S_CBUFFER_VS));
 	//_RPTN(0, "S_CBUFFER_PS	: %d\n", sizeof(S_CBUFFER_PS));
 
@@ -648,54 +650,59 @@ void Render()
 
 	// ----- UPDATE CAMERA -----
 	// --- POSITION ---
-	if (GetAsyncKeyState('S')) // move backward
-	{
-		view = XMMatrixTranslation(0, 0, -1 * g_camMoveSpeed * dt) * view;
-	}
-	if (GetAsyncKeyState('W')) // move forward
-	{
-		view = XMMatrixTranslation(0, 0, g_camMoveSpeed * dt) * view;
-	}
+	FLOAT x, y, z;
+	x = y = z = 0.0f;
 	if (GetAsyncKeyState('A')) // move left
 	{
-		view = XMMatrixTranslation(-1 * g_camMoveSpeed * dt, 0, 0) * view;
+		x -= g_camMoveSpeed * dt;
 	}
 	if (GetAsyncKeyState('D')) // move right
 	{
-		view = XMMatrixTranslation(g_camMoveSpeed * dt, 0, 0) * view;
+		x += g_camMoveSpeed * dt;
 	}
 	if (GetAsyncKeyState(VK_LSHIFT)) // move down
 	{
-		view = XMMatrixTranslation(0, -1 * g_camMoveSpeed * dt, 0) * view;
+		y -= g_camMoveSpeed * dt;
 	}
 	if (GetAsyncKeyState(VK_SPACE)) // move up
 	{
-		view = XMMatrixTranslation(0, g_camMoveSpeed * dt, 0) * view;
+		y += g_camMoveSpeed * dt;
 	}
+	if (GetAsyncKeyState('S')) // move backward
+	{
+		z -= g_camMoveSpeed * dt;
+	}
+	if (GetAsyncKeyState('W')) // move forward
+	{
+		z += g_camMoveSpeed * dt;
+	}
+	// apply offset
+	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
 	// --- POSITION ---
 	// --- ROTATION ---
-	if (GetAsyncKeyState(VK_LEFT)) // rotate left
+	FLOAT xr, yr;
+	xr = yr = 0.0f;
+	if (GetAsyncKeyState(VK_UP)) // rotate upward
 	{
-		XMVECTOR trans = view.r[3];
-		view = view * XMMatrixTranslationFromVector(-1 * trans);
-		view = view * XMMatrixRotationY(-1 * DEGTORAD(g_camRotSpeed) * dt);
-		view = view * XMMatrixTranslationFromVector(trans);
-	}
-	if (GetAsyncKeyState(VK_RIGHT)) // rotate right
-	{
-		XMVECTOR trans = view.r[3];
-		view = view * XMMatrixTranslationFromVector(-1 * trans);
-		view = view * XMMatrixRotationY(DEGTORAD(g_camRotSpeed) * dt);
-		view = view * XMMatrixTranslationFromVector(trans);
+		xr -= DEGTORAD(g_camRotSpeed) * dt;
 	}
 	if (GetAsyncKeyState(VK_DOWN)) // rotate downward
 	{
-		view = XMMatrixRotationX(DEGTORAD(g_camRotSpeed) * dt) * view;
+		xr += DEGTORAD(g_camRotSpeed) * dt;
 	}
-	if (GetAsyncKeyState(VK_UP)) // rotate upward
+	if (GetAsyncKeyState(VK_LEFT)) // rotate left
 	{
-		view = XMMatrixRotationX(-1 * DEGTORAD(g_camRotSpeed) * dt) * view;
+		yr -= DEGTORAD(g_camRotSpeed) * dt;
 	}
+	if (GetAsyncKeyState(VK_RIGHT)) // rotate right
+	{
+		yr += DEGTORAD(g_camRotSpeed) * dt;
+	}
+	// apply rotation
+	XMVECTOR trans = view.r[3];
+	view = view * XMMatrixTranslationFromVector(-1 * trans);
+	view = XMMatrixRotationX(xr) * (view * XMMatrixRotationY(yr));
+	view = view * XMMatrixTranslationFromVector(trans);
 	// --- ROTATION ---
 	// --- ZOOM ---
 	if (GetAsyncKeyState(VK_OEM_MINUS)) // zoom out
