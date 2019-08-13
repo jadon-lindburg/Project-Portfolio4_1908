@@ -15,6 +15,7 @@
 #include "PS_CubeMap.csh"
 #include "PS_InputColor.csh"
 #include "PS_SolidColor.csh"
+#include "PS_Trig.csh"
 
 // meshes (Obj2Header)
 #include "Assets/heavenTorch.h"
@@ -148,6 +149,7 @@ ID3D11PixelShader*			g_p_PS = nullptr;							//released
 ID3D11PixelShader*			g_p_PS_CubeMap = nullptr;					//released
 ID3D11PixelShader*			g_p_PS_InputColor = nullptr;				//released
 ID3D11PixelShader*			g_p_PS_SolidColor = nullptr;				//released
+ID3D11PixelShader*			g_p_PS_Trig = nullptr;						//released
 // --- SHADERS ---
 // ----- D3D vars -----
 
@@ -156,6 +158,7 @@ XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
 XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_wrld_TestHardMesh;
+XMFLOAT4X4					g_wrld_TestLoadMesh;
 // ----- MATRICES -----
 
 // ----- CAMERA VALUES -----
@@ -165,11 +168,11 @@ FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
 FLOAT						g_camZoom = 1.0f;			// current zoom level
 const FLOAT					g_camZoomMin = 0.5f;
 const FLOAT					g_camZoomMax = 2.0f;
-FLOAT						g_camNearSpeed = 1.0f;		// near plane move per second
+FLOAT						g_camNearSpeed = 1.0f;		// near plane change per second
 FLOAT						g_camNearPlane = 0.01f;		// current near plane
 const FLOAT					g_camNearMin = 0.01f;
 const FLOAT					g_camNearMax = 9.0f;
-FLOAT						g_camFarSpeed = 10.0f;		// far plane move per second
+FLOAT						g_camFarSpeed = 10.0f;		// far plane change per second
 FLOAT						g_camFarPlane = 100.0f;		// current far plane
 const FLOAT					g_camFarMin = 10.0f;
 const FLOAT					g_camFarMax = 100.0f;
@@ -177,6 +180,7 @@ const FLOAT					g_camFarMax = 100.0f;
 
 // ----- TOGGLES -----
 bool						g_freelook = true;
+bool						g_defaultPS = true;
 // ----- TOGGLES -----
 // ---------- GLOBAL VARS ----------
 
@@ -375,6 +379,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreatePixelShader(PS_CubeMap, sizeof(PS_CubeMap), nullptr, &g_p_PS_CubeMap);
 	hr = g_p_device->CreatePixelShader(PS_InputColor, sizeof(PS_InputColor), nullptr, &g_p_PS_InputColor);
 	hr = g_p_device->CreatePixelShader(PS_SolidColor, sizeof(PS_SolidColor), nullptr, &g_p_PS_SolidColor);
+	hr = g_p_device->CreatePixelShader(PS_Trig, sizeof(PS_Trig), nullptr, &g_p_PS_Trig);
 	// ----- PIXEL SHADERS -----
 	// ---------- SHADERS ----------
 
@@ -496,6 +501,21 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferPS);
 	// ---------- CONSTANT BUFFERS ----------
 
+	// ---------- SHADER RESOURCE VIEWS ----------
+	// ---------- SHADER RESOURCE VIEWS ----------
+	
+	// ---------- SAMPLER STATES ----------
+	D3D11_SAMPLER_DESC samplerDesc = {};
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = g_p_device->CreateSamplerState(&samplerDesc, &g_p_samplerLinear);
+	// ---------- SAMPLER STATES ----------
+
 	// ---------- MATRICES ----------
 	// world
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
@@ -507,6 +527,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	// projection
 	XMStoreFloat4x4(&g_proj, XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f));
+
+	// mesh world matrices
+	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
 	// ---------- MATRICES ----------
 
 	// ATTACH D3D TO WINDOW
@@ -653,14 +677,38 @@ void Render()
 	S_CBUFFER_PS cBufferPS = {};
 	// ----- CREATE CONSTANT BUFFER STRUCT INSTANCES -----
 
+	// ----- GENERAL PURPOSE VARS -----
+	// color to clear render targets to
+	FLOAT clearColor[4] = { 0, 0, 0.25f, 1 };
+	// matrices
+	XMMATRIX translate = XMMatrixIdentity();
+	XMMATRIX rotate = XMMatrixIdentity();
+	XMMATRIX scale = XMMatrixIdentity();
+	// ----- GENERAL PURPOSE VARS -----
+
 	// ----- RETRIEVE MATRICES -----
 	XMMATRIX wrld = XMLoadFloat4x4(&g_wrld);
 	XMMATRIX view = XMLoadFloat4x4(&g_view);
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
 	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
+	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
 	// ----- RETRIEVE MATRICES -----
 
+	// ----- UPDATE WORLD POSITIONS -----
+	// --- TEST HARDCODED MESH ---
+	// orbit mesh around origin
+	rotate = XMMatrixRotationY(0.5f * t);
+	wrld_TestHardMesh = XMMatrixTranslation(3, 2, 0) * rotate;
+	// --- TEST HARDCODED MESH ---
+	// --- TEST OBJ2HEADER MESH ---
+	rotate = XMMatrixRotationY(-0.3f * t);
+	rotate = rotate * XMMatrixRotationX(0.4f * t);
+	wrld_TestLoadMesh = rotate * XMMatrixTranslation(2, -2, 0);
+	// --- TEST OBJ2HEADER MESH ---
+	// ----- UPDATE WORLD POSITIONS -----
+
 	// ----- HANDLE TOGGLES -----
+	// camera
 	static bool keyHeld_freelook = false;
 	bool keyPressed_freelook = GetAsyncKeyState('C');
 	if (!keyHeld_freelook && keyPressed_freelook) // toggle freelook
@@ -671,6 +719,18 @@ void Render()
 	if (keyHeld_freelook && !keyPressed_freelook) // reset freelook held flag
 	{
 		keyHeld_freelook = false;
+	}
+	// pixel shader
+	static bool keyHeld_defaultPS = false;
+	bool keyPressed_defaultPS = GetAsyncKeyState('2');
+	if (!keyHeld_defaultPS && keyPressed_defaultPS) // toggle defaultPS
+	{
+		keyHeld_defaultPS = true;
+		g_defaultPS = !g_defaultPS;
+	}
+	if (keyHeld_defaultPS && !keyPressed_defaultPS) // reset defaultPS held flag
+	{
+		keyHeld_defaultPS = false;
 	}
 	// ----- HANDLE TOGGLES -----
 
@@ -801,15 +861,6 @@ void Render()
 	// --------------------------------------------------
 	// DRAWING
 
-	// ----- GENERAL PURPOSE VARS -----
-	// color to clear render targets to
-	FLOAT clearColor[4] = { 0, 0, 0.25f, 1 };
-	// matrices
-	XMMATRIX translate = XMMatrixIdentity();
-	XMMATRIX rotate = XMMatrixIdentity();
-	XMMATRIX scale = XMMatrixIdentity();
-	// ----- GENERAL PURPOSE VARS -----
-
 	// ---------- FIRST RENDER PASS ----------
 	// ----- RENDER PREP -----
 	// clear render target view
@@ -844,11 +895,10 @@ void Render()
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
 	cBufferVS.t = t;
-	cBufferVS.pad = XMFLOAT3(0, 0, 0);
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 
 	// pixel
-	cBufferPS.ambientColor = XMFLOAT4(1, 0, 0, 1);
+	cBufferPS.ambientColor = { 0.25f, 0.25f, 0.25f, 1 };
 	cBufferPS.dLights[0] = dLights[0];
 	cBufferPS.dLights[1] = dLights[1];
 	cBufferPS.t = t;
@@ -859,9 +909,6 @@ void Render()
 	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
-	// orbit mesh around origin
-	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_TestHardMesh = XMMatrixTranslation(3, 2, 0) * rotate;
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(wrld_TestHardMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
@@ -882,10 +929,6 @@ void Render()
 	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
-	// mesh position
-	XMMATRIX wrld_TestLoadMesh = XMMatrixTranslation(2, -2, 0);
-	//rotate = XMMatrixRotationY(-0.5f * t);
-	//wrld_TestLoadMesh = rotate * wrld_TestLoadMesh;
 	// mesh instance offsets
 	instanceOffsets[0] = XMMatrixTranslation(0, 0, 0);
 	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
@@ -903,7 +946,10 @@ void Render()
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	if (g_defaultPS)
+		g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	else
+		g_p_deviceContext->PSSetShader(g_p_PS_Trig, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestLoadMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
@@ -921,6 +967,7 @@ void Render()
 	XMStoreFloat4x4(&g_view, view);
 	XMStoreFloat4x4(&g_proj, proj);
 	XMStoreFloat4x4(&g_wrld_TestHardMesh, wrld_TestHardMesh);
+	XMStoreFloat4x4(&g_wrld_TestLoadMesh, wrld_TestLoadMesh);
 	// ----- STORE MATRICES -----
 
 	// STORE VARS
@@ -930,6 +977,7 @@ void Render()
 void Cleanup()
 {
 	// --- SHADERS ---
+	if (g_p_PS_Trig) g_p_PS_Trig->Release();
 	if (g_p_PS_SolidColor) g_p_PS_SolidColor->Release();
 	if (g_p_PS_InputColor) g_p_PS_InputColor->Release();
 	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
