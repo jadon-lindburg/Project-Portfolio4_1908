@@ -1,5 +1,5 @@
 // ---------- INCLUDES ----------
-#include "stdafx.h"
+//#include "stdafx.h"
 #include "Project.h"
 
 #include <iostream>
@@ -8,6 +8,7 @@
 #include <d3d11.h>
 #include <DirectXMath.h>
 #pragma comment(lib, "d3d11.lib")
+#include "DDSTextureLoader.h"
 
 // shaders
 #include "VS.csh"
@@ -130,13 +131,14 @@ ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
 UINT						g_numVerts_TestLoadMesh = 0;
 UINT						g_numInds_TestLoadMesh = 0;
+LPCWSTR						g_texFilepath_TestLoadMesh = L"/Assets/heaventorch_diffuse.dds";
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
 // --- SHADER RESOURCE VIEWS ---
-ID3D11ShaderResourceView*	g_p_texRV_testLoadmesh = nullptr;			//released
+ID3D11ShaderResourceView*	g_p_texRV_TestLoadmesh = nullptr;			//released
 // --- SHADER RESOURCE VIEWS ---
 // --- SAMPLER STATES ---
 ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
@@ -502,8 +504,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ---------- CONSTANT BUFFERS ----------
 
 	// ---------- SHADER RESOURCE VIEWS ----------
+	// test Obj2Header mesh
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_texRV_TestLoadmesh);
 	// ---------- SHADER RESOURCE VIEWS ----------
-	
+
 	// ---------- SAMPLER STATES ----------
 	D3D11_SAMPLER_DESC samplerDesc = {};
 	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
@@ -702,7 +706,6 @@ void Render()
 	// --- TEST HARDCODED MESH ---
 	// --- TEST OBJ2HEADER MESH ---
 	rotate = XMMatrixRotationY(-0.3f * t);
-	rotate = rotate * XMMatrixRotationX(0.4f * t);
 	wrld_TestLoadMesh = rotate * XMMatrixTranslation(2, -2, 0);
 	// --- TEST OBJ2HEADER MESH ---
 	// ----- UPDATE WORLD POSITIONS -----
@@ -735,126 +738,110 @@ void Render()
 	// ----- HANDLE TOGGLES -----
 
 	// ----- UPDATE CAMERA -----
-	// --- FREELOOK ---
-	if (g_freelook)
+	// -- POSITION --
+	FLOAT x, y, z;
+	x = y = z = 0.0f;
+	if (GetAsyncKeyState('A')) // move left
 	{
-		// -- POSITION --
-		FLOAT x, y, z;
-		x = y = z = 0.0f;
-		if (GetAsyncKeyState('A')) // move left
-		{
-			x -= g_camMoveSpeed * dt;
-		}
-		if (GetAsyncKeyState('D')) // move right
-		{
-			x += g_camMoveSpeed * dt;
-		}
-		if (GetAsyncKeyState(VK_LSHIFT)) // move down
-		{
-			y -= g_camMoveSpeed * dt;
-		}
-		if (GetAsyncKeyState(VK_SPACE)) // move up
-		{
-			y += g_camMoveSpeed * dt;
-		}
-		if (GetAsyncKeyState('S')) // move backward
-		{
-			z -= g_camMoveSpeed * dt;
-		}
-		if (GetAsyncKeyState('W')) // move forward
-		{
-			z += g_camMoveSpeed * dt;
-		}
-		// apply offset
-		view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
-		// -- POSITION --
-		// -- ROTATION --
-		FLOAT xr, yr;
-		xr = yr = 0.0f;
-		if (GetAsyncKeyState(VK_UP)) // rotate upward
-		{
-			xr -= DEGTORAD(g_camRotSpeed) * dt;
-		}
-		if (GetAsyncKeyState(VK_DOWN)) // rotate downward
-		{
-			xr += DEGTORAD(g_camRotSpeed) * dt;
-		}
-		if (GetAsyncKeyState(VK_LEFT)) // rotate left
-		{
-			yr -= DEGTORAD(g_camRotSpeed) * dt;
-		}
-		if (GetAsyncKeyState(VK_RIGHT)) // rotate right
-		{
-			yr += DEGTORAD(g_camRotSpeed) * dt;
-		}
-		// apply rotation
-		XMVECTOR camPos = view.r[3];
-		view = view * XMMatrixTranslationFromVector(-1 * camPos);
-		view = XMMatrixRotationX(xr) * (view * XMMatrixRotationY(yr));
-		view = view * XMMatrixTranslationFromVector(camPos);
-		// -- ROTATION --
-		// -- ZOOM --
-		if (GetAsyncKeyState(VK_OEM_MINUS)) // zoom out
-		{
-			g_camZoom -= g_camMoveSpeed * dt;
-			if (g_camZoom < g_camZoomMin)
-				g_camZoom = g_camZoomMin;
-		}
-		if (GetAsyncKeyState(VK_OEM_PLUS)) // zoom in
-		{
-			g_camZoom += g_camMoveSpeed * dt;
-			if (g_camZoom > g_camZoomMax)
-				g_camZoom = g_camZoomMax;
-		}
-		// -- ZOOM --
-		// -- NEAR / FAR PLANES --
-		if (GetAsyncKeyState(VK_OEM_4)) // far plane closer
-		{
-			g_camFarPlane -= g_camFarSpeed * dt;
-			if (g_camFarPlane < g_camFarMin)
-				g_camFarPlane = g_camFarMin;
-		}
-		if (GetAsyncKeyState(VK_OEM_6)) // far plane farther
-		{
-			g_camFarPlane += g_camFarSpeed * dt;
-			if (g_camFarPlane > g_camFarMax)
-				g_camFarPlane = g_camFarMax;
-		}
-		if (GetAsyncKeyState(VK_OEM_1)) // near plane closer
-		{
-			g_camNearPlane -= g_camNearSpeed * dt;
-			if (g_camNearPlane < g_camNearMin)
-				g_camNearPlane = g_camNearMin;
-		}
-		if (GetAsyncKeyState(VK_OEM_7)) // near plane farther
-		{
-			g_camNearPlane += g_camNearSpeed * dt;
-			if (g_camNearPlane > g_camNearMax)
-				g_camNearPlane = g_camNearMax;
-		}
-		// -- NEAR / FAR PLANES --
-		// reset camera
-		if (GetAsyncKeyState(VK_BACK)) // reset zoom, near / far planes
-		{
-			g_camZoom = 1.0f;
-			g_camNearPlane = 0.01f;
-			g_camFarPlane = 100.0f;
-		}
-		// update projection matrix with current zoom level and near/far planes
-		proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
+		x -= g_camMoveSpeed * dt;
 	}
-	// --- FREELOOK ---
-	// --- CAMERA TRACK ---
-	else
+	if (GetAsyncKeyState('D')) // move right
 	{
-		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
-		XMVECTOR at = XMVectorSet(XMVectorGetX(wrld_TestHardMesh.r[3]), XMVectorGetY(wrld_TestHardMesh.r[3]), XMVectorGetZ(wrld_TestHardMesh.r[3]), 1);
-		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
-		view = XMMatrixLookAtLH(eye, at, up);
-		view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-		proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f);
+		x += g_camMoveSpeed * dt;
 	}
-	// --- CAMERA TRACK ---
+	if (GetAsyncKeyState(VK_LSHIFT)) // move down
+	{
+		y -= g_camMoveSpeed * dt;
+	}
+	if (GetAsyncKeyState(VK_SPACE)) // move up
+	{
+		y += g_camMoveSpeed * dt;
+	}
+	if (GetAsyncKeyState('S')) // move backward
+	{
+		z -= g_camMoveSpeed * dt;
+	}
+	if (GetAsyncKeyState('W')) // move forward
+	{
+		z += g_camMoveSpeed * dt;
+	}
+	// apply offset
+	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
+	// -- POSITION --
+	// -- ROTATION --
+	FLOAT xr, yr;
+	xr = yr = 0.0f;
+	if (GetAsyncKeyState(VK_UP)) // rotate upward
+	{
+		xr -= DEGTORAD(g_camRotSpeed) * dt;
+	}
+	if (GetAsyncKeyState(VK_DOWN)) // rotate downward
+	{
+		xr += DEGTORAD(g_camRotSpeed) * dt;
+	}
+	if (GetAsyncKeyState(VK_LEFT)) // rotate left
+	{
+		yr -= DEGTORAD(g_camRotSpeed) * dt;
+	}
+	if (GetAsyncKeyState(VK_RIGHT)) // rotate right
+	{
+		yr += DEGTORAD(g_camRotSpeed) * dt;
+	}
+	// apply rotation
+	XMVECTOR camPos = view.r[3];
+	view = view * XMMatrixTranslationFromVector(-1 * camPos);
+	view = XMMatrixRotationX(xr) * (view * XMMatrixRotationY(yr));
+	view = view * XMMatrixTranslationFromVector(camPos);
+	// -- ROTATION --
+	// -- ZOOM --
+	if (GetAsyncKeyState(VK_OEM_MINUS)) // zoom out
+	{
+		g_camZoom -= g_camMoveSpeed * dt;
+		if (g_camZoom < g_camZoomMin)
+			g_camZoom = g_camZoomMin;
+	}
+	if (GetAsyncKeyState(VK_OEM_PLUS)) // zoom in
+	{
+		g_camZoom += g_camMoveSpeed * dt;
+		if (g_camZoom > g_camZoomMax)
+			g_camZoom = g_camZoomMax;
+	}
+	// -- ZOOM --
+	// -- NEAR / FAR PLANES --
+	if (GetAsyncKeyState(VK_OEM_4)) // far plane closer
+	{
+		g_camFarPlane -= g_camFarSpeed * dt;
+		if (g_camFarPlane < g_camFarMin)
+			g_camFarPlane = g_camFarMin;
+	}
+	if (GetAsyncKeyState(VK_OEM_6)) // far plane farther
+	{
+		g_camFarPlane += g_camFarSpeed * dt;
+		if (g_camFarPlane > g_camFarMax)
+			g_camFarPlane = g_camFarMax;
+	}
+	if (GetAsyncKeyState(VK_OEM_1)) // near plane closer
+	{
+		g_camNearPlane -= g_camNearSpeed * dt;
+		if (g_camNearPlane < g_camNearMin)
+			g_camNearPlane = g_camNearMin;
+	}
+	if (GetAsyncKeyState(VK_OEM_7)) // near plane farther
+	{
+		g_camNearPlane += g_camNearSpeed * dt;
+		if (g_camNearPlane > g_camNearMax)
+			g_camNearPlane = g_camNearMax;
+	}
+	// -- NEAR / FAR PLANES --
+	// reset camera
+	if (GetAsyncKeyState(VK_BACK)) // reset zoom, near / far planes
+	{
+		g_camZoom = 1.0f;
+		g_camNearPlane = 0.01f;
+		g_camFarPlane = 100.0f;
+	}
+	// update projection matrix with current zoom level and near/far planes
+	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
 	// ----- UPDATE CAMERA -----
 
 	// UPDATES / DRAW SETUP
@@ -886,19 +873,29 @@ void Render()
 	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR] =
 	{
 		// dir, color
-		{ { 1, 0, 0, 0 }, { 1, 0, 0, 1 } },
-		{ { 0, 1, 0, 0 }, { 0, 1, 0, 1 } },
+		{ { 1, 0, 0, 0 }, { 0, 1, 1, 1 } },
+		{ { 0, 1, 0, 0 }, { 1, 1, 1, 1 } },
 		{}
 	};
 	// ----- LIGHTS -----
 
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
+	if (g_freelook)
+		cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
+	else
+	{
+		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
+		XMVECTOR at = wrld_TestHardMesh.r[3];
+		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
+		cBufferVS.view = XMMatrixTranspose(XMMatrixLookAtLH(eye, at, up));
+	}
+	cBufferVS.proj = XMMatrixTranspose(proj);
 	cBufferVS.t = t;
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 
 	// pixel
-	cBufferPS.ambientColor = { 0.25f, 0.25f, 0.25f, 1 };
+	cBufferPS.ambientColor = { 0.1f, 0.1f, 0.1f, 1 };
 	cBufferPS.dLights[0] = dLights[0];
 	cBufferPS.dLights[1] = dLights[1];
 	cBufferPS.t = t;
@@ -911,8 +908,6 @@ void Render()
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(wrld_TestHardMesh);
-	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
-	cBufferVS.proj = XMMatrixTranspose(proj);
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
@@ -935,8 +930,6 @@ void Render()
 	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(wrld_TestLoadMesh);
-	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
-	cBufferVS.proj = XMMatrixTranspose(proj);
 	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
 	cBufferVS.instanceOffsets[1] = instanceOffsets[1];
 	cBufferVS.instanceOffsets[2] = instanceOffsets[2];
@@ -946,10 +939,16 @@ void Render()
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	if (g_defaultPS)
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestLoadmesh);
+	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
+	if (g_defaultPS) // use default shader
+	{
 		g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
-	else
+	}
+	else // use fancy shader
+	{
 		g_p_deviceContext->PSSetShader(g_p_PS_Trig, 0, 0);
+	}
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestLoadMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
@@ -986,7 +985,7 @@ void Cleanup()
 	// --- SAMPLER STATES ---
 	if (g_p_samplerLinear) g_p_samplerLinear->Release();
 	// --- SHADER RESOURCE VIEWS ---
-	if (g_p_texRV_testLoadmesh) g_p_texRV_testLoadmesh->Release();
+	if (g_p_texRV_TestLoadmesh) g_p_texRV_TestLoadmesh->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();

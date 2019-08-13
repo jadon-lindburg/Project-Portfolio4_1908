@@ -62,7 +62,7 @@ float4 main(S_PSINPUT _input) : SV_TARGET
         finalColor += saturate(dot((float3) dLights[i].dir, _input.norm) * dLights[i].color);
     }
 	// texture
-    //finalColor *= txDiffuse2D.Sample(samplerLinear, _input.tex.xy);
+    finalColor *= txDiffuse2D.Sample(samplerLinear, _input.tex.xy);
 	// return
     finalColor.a = 1;
     return finalColor;
