@@ -135,10 +135,10 @@ ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
 // --- SHADER RESOURCE VIEWS ---
-ID3D11ShaderResourceView*	g_p_texRV_testLoadmesh = nullptr;			//
+ID3D11ShaderResourceView*	g_p_texRV_testLoadmesh = nullptr;			//released
 // --- SHADER RESOURCE VIEWS ---
 // --- SAMPLER STATES ---
-ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//
+ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
 // --- SAMPLER STATES ---
 // --- SHADERS ---
 // VERTEX
@@ -158,7 +158,7 @@ XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_wrld_TestHardMesh;
 // ----- MATRICES -----
 
-// ----- CAMERAS -----
+// ----- CAMERA VALUES -----
 FLOAT						g_camMoveSpeed = 4.0f;		// units per second
 FLOAT						g_camRotSpeed = 25.0f;		// degrees per second
 FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
@@ -173,7 +173,11 @@ FLOAT						g_camFarSpeed = 10.0f;		// far plane move per second
 FLOAT						g_camFarPlane = 100.0f;		// current far plane
 const FLOAT					g_camFarMin = 10.0f;
 const FLOAT					g_camFarMax = 100.0f;
-// ----- CAMERAS -----
+// ----- CAMERA VALUES -----
+
+// ----- TOGGLES -----
+bool						g_freelook = true;
+// ----- TOGGLES -----
 // ---------- GLOBAL VARS ----------
 
 // Forward declarations of functions included in this code module:
@@ -656,111 +660,141 @@ void Render()
 	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
 	// ----- RETRIEVE MATRICES -----
 
+	// ----- HANDLE TOGGLES -----
+	static bool keyHeld_freelook = false;
+	bool keyPressed_freelook = GetAsyncKeyState('C');
+	if (!keyHeld_freelook && keyPressed_freelook) // toggle freelook
+	{
+		keyHeld_freelook = true;
+		g_freelook = !g_freelook;
+	}
+	if (keyHeld_freelook && !keyPressed_freelook) // reset freelook held flag
+	{
+		keyHeld_freelook = false;
+	}
+	// ----- HANDLE TOGGLES -----
+
 	// ----- UPDATE CAMERA -----
-	// --- POSITION ---
-	FLOAT x, y, z;
-	x = y = z = 0.0f;
-	if (GetAsyncKeyState('A')) // move left
+	// --- FREELOOK ---
+	if (g_freelook)
 	{
-		x -= g_camMoveSpeed * dt;
+		// -- POSITION --
+		FLOAT x, y, z;
+		x = y = z = 0.0f;
+		if (GetAsyncKeyState('A')) // move left
+		{
+			x -= g_camMoveSpeed * dt;
+		}
+		if (GetAsyncKeyState('D')) // move right
+		{
+			x += g_camMoveSpeed * dt;
+		}
+		if (GetAsyncKeyState(VK_LSHIFT)) // move down
+		{
+			y -= g_camMoveSpeed * dt;
+		}
+		if (GetAsyncKeyState(VK_SPACE)) // move up
+		{
+			y += g_camMoveSpeed * dt;
+		}
+		if (GetAsyncKeyState('S')) // move backward
+		{
+			z -= g_camMoveSpeed * dt;
+		}
+		if (GetAsyncKeyState('W')) // move forward
+		{
+			z += g_camMoveSpeed * dt;
+		}
+		// apply offset
+		view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
+		// -- POSITION --
+		// -- ROTATION --
+		FLOAT xr, yr;
+		xr = yr = 0.0f;
+		if (GetAsyncKeyState(VK_UP)) // rotate upward
+		{
+			xr -= DEGTORAD(g_camRotSpeed) * dt;
+		}
+		if (GetAsyncKeyState(VK_DOWN)) // rotate downward
+		{
+			xr += DEGTORAD(g_camRotSpeed) * dt;
+		}
+		if (GetAsyncKeyState(VK_LEFT)) // rotate left
+		{
+			yr -= DEGTORAD(g_camRotSpeed) * dt;
+		}
+		if (GetAsyncKeyState(VK_RIGHT)) // rotate right
+		{
+			yr += DEGTORAD(g_camRotSpeed) * dt;
+		}
+		// apply rotation
+		XMVECTOR camPos = view.r[3];
+		view = view * XMMatrixTranslationFromVector(-1 * camPos);
+		view = XMMatrixRotationX(xr) * (view * XMMatrixRotationY(yr));
+		view = view * XMMatrixTranslationFromVector(camPos);
+		// -- ROTATION --
+		// -- ZOOM --
+		if (GetAsyncKeyState(VK_OEM_MINUS)) // zoom out
+		{
+			g_camZoom -= g_camMoveSpeed * dt;
+			if (g_camZoom < g_camZoomMin)
+				g_camZoom = g_camZoomMin;
+		}
+		if (GetAsyncKeyState(VK_OEM_PLUS)) // zoom in
+		{
+			g_camZoom += g_camMoveSpeed * dt;
+			if (g_camZoom > g_camZoomMax)
+				g_camZoom = g_camZoomMax;
+		}
+		// -- ZOOM --
+		// -- NEAR / FAR PLANES --
+		if (GetAsyncKeyState(VK_OEM_4)) // far plane closer
+		{
+			g_camFarPlane -= g_camFarSpeed * dt;
+			if (g_camFarPlane < g_camFarMin)
+				g_camFarPlane = g_camFarMin;
+		}
+		if (GetAsyncKeyState(VK_OEM_6)) // far plane farther
+		{
+			g_camFarPlane += g_camFarSpeed * dt;
+			if (g_camFarPlane > g_camFarMax)
+				g_camFarPlane = g_camFarMax;
+		}
+		if (GetAsyncKeyState(VK_OEM_1)) // near plane closer
+		{
+			g_camNearPlane -= g_camNearSpeed * dt;
+			if (g_camNearPlane < g_camNearMin)
+				g_camNearPlane = g_camNearMin;
+		}
+		if (GetAsyncKeyState(VK_OEM_7)) // near plane farther
+		{
+			g_camNearPlane += g_camNearSpeed * dt;
+			if (g_camNearPlane > g_camNearMax)
+				g_camNearPlane = g_camNearMax;
+		}
+		// -- NEAR / FAR PLANES --
+		// reset camera
+		if (GetAsyncKeyState(VK_BACK)) // reset zoom, near / far planes
+		{
+			g_camZoom = 1.0f;
+			g_camNearPlane = 0.01f;
+			g_camFarPlane = 100.0f;
+		}
+		// update projection matrix with current zoom level and near/far planes
+		proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
 	}
-	if (GetAsyncKeyState('D')) // move right
+	// --- FREELOOK ---
+	// --- CAMERA TRACK ---
+	else
 	{
-		x += g_camMoveSpeed * dt;
+		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
+		XMVECTOR at = XMVectorSet(XMVectorGetX(wrld_TestHardMesh.r[3]), XMVectorGetY(wrld_TestHardMesh.r[3]), XMVectorGetZ(wrld_TestHardMesh.r[3]), 1);
+		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
+		view = XMMatrixLookAtLH(eye, at, up);
+		view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+		proj = XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f);
 	}
-	if (GetAsyncKeyState(VK_LSHIFT)) // move down
-	{
-		y -= g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState(VK_SPACE)) // move up
-	{
-		y += g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState('S')) // move backward
-	{
-		z -= g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState('W')) // move forward
-	{
-		z += g_camMoveSpeed * dt;
-	}
-	// apply offset
-	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
-	// --- POSITION ---
-	// --- ROTATION ---
-	FLOAT xr, yr;
-	xr = yr = 0.0f;
-	if (GetAsyncKeyState(VK_UP)) // rotate upward
-	{
-		xr -= DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_DOWN)) // rotate downward
-	{
-		xr += DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_LEFT)) // rotate left
-	{
-		yr -= DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_RIGHT)) // rotate right
-	{
-		yr += DEGTORAD(g_camRotSpeed) * dt;
-	}
-	// apply rotation
-	XMVECTOR trans = view.r[3];
-	view = view * XMMatrixTranslationFromVector(-1 * trans);
-	view = XMMatrixRotationX(xr) * (view * XMMatrixRotationY(yr));
-	view = view * XMMatrixTranslationFromVector(trans);
-	// --- ROTATION ---
-	// --- ZOOM ---
-	if (GetAsyncKeyState(VK_OEM_MINUS)) // zoom out
-	{
-		g_camZoom -= g_camMoveSpeed * dt;
-		if (g_camZoom < g_camZoomMin)
-			g_camZoom = g_camZoomMin;
-	}
-	if (GetAsyncKeyState(VK_OEM_PLUS)) // zoom in
-	{
-		g_camZoom += g_camMoveSpeed * dt;
-		if (g_camZoom > g_camZoomMax)
-			g_camZoom = g_camZoomMax;
-	}
-	// --- ZOOM ---
-	// --- NEAR / FAR PLANES ---
-	if (GetAsyncKeyState(VK_OEM_4)) // far plane closer
-	{
-		g_camFarPlane -= g_camFarSpeed * dt;
-		if (g_camFarPlane < g_camFarMin)
-			g_camFarPlane = g_camFarMin;
-	}
-	if (GetAsyncKeyState(VK_OEM_6)) // far plane farther
-	{
-		g_camFarPlane += g_camFarSpeed * dt;
-		if (g_camFarPlane > g_camFarMax)
-			g_camFarPlane = g_camFarMax;
-	}
-	if (GetAsyncKeyState(VK_OEM_1)) // near plane closer
-	{
-		g_camNearPlane -= g_camNearSpeed * dt;
-		if (g_camNearPlane < g_camNearMin)
-			g_camNearPlane = g_camNearMin;
-	}
-	if (GetAsyncKeyState(VK_OEM_7)) // near plane farther
-	{
-		g_camNearPlane += g_camNearSpeed * dt;
-		if (g_camNearPlane > g_camNearMax)
-			g_camNearPlane = g_camNearMax;
-	}
-	// --- NEAR / FAR PLANES ---
-	// reset camera
-	if (GetAsyncKeyState(VK_BACK)) // reset zoom, near / far planes
-	{
-		g_camZoom = 1.0f;
-		g_camNearPlane = 0.01f;
-		g_camFarPlane = 100.0f;
-	}
-	// update projection matrix with current zoom level
-	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
+	// --- CAMERA TRACK ---
 	// ----- UPDATE CAMERA -----
 
 	// UPDATES / DRAW SETUP
@@ -785,9 +819,7 @@ void Render()
 	// set viewport
 	g_p_deviceContext->RSSetViewports(1, &g_viewport);
 	// set render target view
-	// TODO: replace 3rd arg(nullptr) with zbuffer / depth stencil view
 	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
-	//g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
 	// set shader constant buffers
 	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
 	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
@@ -829,7 +861,7 @@ void Render()
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_TestHardMesh = rotate;
+	wrld_TestHardMesh = XMMatrixTranslation(3, 2, 0) * rotate;
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(wrld_TestHardMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
@@ -851,7 +883,7 @@ void Render()
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
 	// mesh position
-	XMMATRIX wrld_TestLoadMesh = XMMatrixTranslation(2, -0.5f, 0);
+	XMMATRIX wrld_TestLoadMesh = XMMatrixTranslation(2, -2, 0);
 	//rotate = XMMatrixRotationY(-0.5f * t);
 	//wrld_TestLoadMesh = rotate * wrld_TestLoadMesh;
 	// mesh instance offsets
@@ -903,6 +935,10 @@ void Cleanup()
 	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
 	if (g_p_PS) g_p_PS->Release();
 	if (g_p_VS) g_p_VS->Release();
+	// --- SAMPLER STATES ---
+	if (g_p_samplerLinear) g_p_samplerLinear->Release();
+	// --- SHADER RESOURCE VIEWS ---
+	if (g_p_texRV_testLoadmesh) g_p_texRV_testLoadmesh->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();

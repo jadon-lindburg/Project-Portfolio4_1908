@@ -1,5 +1,7 @@
 CAMERA CONTROLS
 --------------------------------------------------
+C				: Toggle freelook
+
 W/S				: Move forward/back
 A/D				: Move left/right
 SPACE/LSHIFT	: Move up/down
