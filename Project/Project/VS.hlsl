@@ -39,7 +39,7 @@ S_VSOUTPUT main(S_VSINPUT _input)
     output.color = _input.color;
     output.instanceID = _input.instanceID;
 
-	//output.pos = mul(output.pos, instanceOffsets[output.instanceID]);
+	output.pos = mul(instanceOffsets[output.instanceID], output.pos);
 	output.pos = mul(output.pos, wrld);
 	output.pos = mul(output.pos, view);
 	output.pos = mul(output.pos, proj);

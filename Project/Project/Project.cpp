@@ -12,8 +12,11 @@
 // shaders
 #include "VS.csh"
 #include "PS.csh"
+#include "PS_CubeMap.csh"
+#include "PS_InputColor.csh"
+#include "PS_SolidColor.csh"
 
-// meshes (temp)
+// meshes (Obj2Header)
 #include "Assets/heavenTorch.h"
 
 using namespace DirectX;
@@ -79,23 +82,10 @@ struct S_CBUFFER_PS
 {
 	XMFLOAT4	ambientColor;					//16B
 	XMFLOAT4	instanceColors[MAX_INSTANCES];	//16B * MAX_INSTANCES
-	S_LIGHT_DIR	dLights[MAX_LIGHTS_DIR];
-	S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];
-	S_LIGHT_SPT	sLights[MAX_LIGHTS_SPT];
+	S_LIGHT_DIR	dLights[MAX_LIGHTS_DIR];		//32B * MAX_LIGHTS_DIR
+	S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];		//48B * MAX_LIGHTS_PNT
+	S_LIGHT_SPT	sLights[MAX_LIGHTS_SPT];		//68B * MAX_LIGHTS_SPT
 	FLOAT		t;								//4B
-
-	//XMFLOAT4	dLightDir[MAX_DLIGHTS];			//12B * MAX_DLIGHTS
-	//XMFLOAT4	dLightColor[MAX_DLIGHTS];		//16B * MAX_DLIGHTS
-	//XMFLOAT4	pLightPos[MAX_PLIGHTS];			//16B * MAX_PLIGHTS
-	//FLOAT		pLightRange[MAX_PLIGHTS];		//4B * MAX_PLIGHTS
-	//XMFLOAT3	pLightAtten[MAX_PLIGHTS];		//12B * MAX_PLIGHTS
-	//XMFLOAT4	pLightColor[MAX_PLIGHTS];		//16B * MAX_PLIGHTS
-	//XMFLOAT4	sLightPos[MAX_SLIGHTS];			//16B * MAX_SLIGHTS
-	//XMFLOAT4	sLightDir[MAX_SLIGHTS];			//16B * MAX_SLIGHTS
-	//FLOAT		sLightRange[MAX_SLIGHTS];		//4B * MAX_SLIGHTS
-	//FLOAT		sLightCone[MAX_SLIGHTS];		//4B * MAX_SLIGHTS
-	//XMFLOAT3	sLightAtten[MAX_SLIGHTS];		//12B * MAX_SLIGHTS
-	//XMFLOAT4	sLightColor[MAX_SLIGHTS];		//16B * MAX_SLIGHTS
 };
 // ---------- STRUCTS ----------
 
@@ -110,12 +100,18 @@ WCHAR						g_szWindowClass[MAX_LOADSTRING];			// the main window class name
 // ----- D3D VARS -----
 D3D_DRIVER_TYPE				g_driverType = D3D_DRIVER_TYPE_NULL;
 D3D_FEATURE_LEVEL			g_featureLevel = D3D_FEATURE_LEVEL_11_0;
+// --- DEVICE / SWAP CHAIN ---
 ID3D11Device*				g_p_device = nullptr;						//released
 IDXGISwapChain*				g_p_swapChain = nullptr;					//released
 ID3D11DeviceContext*		g_p_deviceContext = nullptr;				//released
+// --- DEVICE / SWAP CHAIN ---
 // --- RENDER TARGET VIEWS ---
 ID3D11RenderTargetView*		g_p_renderTargetView = nullptr;				//released
 // --- RENDER TARGET VIEWS ---
+// --- DEPTH STENCILS ---
+ID3D11Texture2D*			g_p_depthStencil = nullptr;					//released
+ID3D11DepthStencilView*		g_p_depthStencilView = nullptr;				//released
+// --- DEPTH STENCILS ---
 // --- VIEWPORTS ---
 D3D11_VIEWPORT				g_viewport;
 // --- VIEWPORTS ---
@@ -124,25 +120,34 @@ ID3D11InputLayout*			g_p_vertexLayout = nullptr;					//released
 // --- INPUT LAYOUT ---
 // --- VERT / IND BUFFERS ---
 // TEST MESH
-ID3D11Buffer*				g_p_vBufferTestHardMesh = nullptr;				//released
-ID3D11Buffer*				g_p_iBufferTestHardMesh = nullptr;				//released
-UINT						g_numVertsTestHardMesh = 0;
-UINT						g_numIndsTestHardMesh = 0;
+ID3D11Buffer*				g_p_vBuffer_TestHardMesh = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_TestHardMesh = nullptr;			//released
+UINT						g_numVerts_TestHardMesh = 0;
+UINT						g_numInds_TestHardMesh = 0;
 // TEST OBJ2HEADER MESH
-ID3D11Buffer*				g_p_vBufferTestLoadMesh = nullptr;			//
-ID3D11Buffer*				g_p_iBufferTestLoadMesh = nullptr;			//
-UINT						g_numVertsTestLoadMesh = 0;
-UINT						g_numIndsTestLoadMesh = 0;
+ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
+UINT						g_numVerts_TestLoadMesh = 0;
+UINT						g_numInds_TestLoadMesh = 0;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
+// --- SHADER RESOURCE VIEWS ---
+ID3D11ShaderResourceView*	g_p_texRV_testLoadmesh = nullptr;			//
+// --- SHADER RESOURCE VIEWS ---
+// --- SAMPLER STATES ---
+ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//
+// --- SAMPLER STATES ---
 // --- SHADERS ---
 // VERTEX
 ID3D11VertexShader*			g_p_VS = nullptr;							//released
 // PIXEL
 ID3D11PixelShader*			g_p_PS = nullptr;							//released
+ID3D11PixelShader*			g_p_PS_CubeMap = nullptr;					//released
+ID3D11PixelShader*			g_p_PS_InputColor = nullptr;				//released
+ID3D11PixelShader*			g_p_PS_SolidColor = nullptr;				//released
 // --- SHADERS ---
 // ----- D3D vars -----
 
@@ -315,6 +320,30 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	backBuffer->Release();
 	// ---------- RENDER TARGET VIEWS ----------
 
+	// ---------- DEPTH STENCILS ----------
+	// create depth stencil texture
+	D3D11_TEXTURE2D_DESC depthStencilDesc = {};
+	depthStencilDesc.Width = windowWidth;
+	depthStencilDesc.Height = windowHeight;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.ArraySize = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthStencilDesc.CPUAccessFlags = 0;
+	depthStencilDesc.MiscFlags = 0;
+	hr = g_p_device->CreateTexture2D(&depthStencilDesc, nullptr, &g_p_depthStencil);
+
+	// create depth stencil view
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+	depthStencilViewDesc.Format = depthStencilDesc.Format;
+	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.Texture2D.MipSlice = 0;
+	hr = g_p_device->CreateDepthStencilView(g_p_depthStencil, &depthStencilViewDesc, &g_p_depthStencilView);
+	// ---------- DEPTH STENCILS ----------
+
 	// ---------- VIEWPORTS ----------
 	// setup main viewport
 	g_viewport.Width = (FLOAT)windowWidth;
@@ -331,6 +360,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ----- VERTEX SHADERS -----
 	// ----- PIXEL SHADERS -----
 	hr = g_p_device->CreatePixelShader(PS, sizeof(PS), nullptr, &g_p_PS);
+	hr = g_p_device->CreatePixelShader(PS_CubeMap, sizeof(PS_CubeMap), nullptr, &g_p_PS_CubeMap);
+	hr = g_p_device->CreatePixelShader(PS_InputColor, sizeof(PS_InputColor), nullptr, &g_p_PS_InputColor);
+	hr = g_p_device->CreatePixelShader(PS_SolidColor, sizeof(PS_SolidColor), nullptr, &g_p_PS_SolidColor);
 	// ----- PIXEL SHADERS -----
 	// ---------- SHADERS ----------
 
@@ -361,7 +393,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.5f, 0, 0.5f }, { 0, 0, 0 }, { 1, 0, 0, 1} }, // bottom back left
 		{ { 0, 0.5f, 0, 1 }, { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 1, 1} } // top
 	};
-	g_numVertsTestHardMesh = ARRAYSIZE(vertsTestHardMesh);
+	g_numVerts_TestHardMesh = ARRAYSIZE(vertsTestHardMesh);
 	// --- VERTEX BUFFER DATA ---
 	// --- INDEX BUFFER DATA ---
 	int indsTestHardMesh[] =
@@ -371,27 +403,27 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		3, 1, 0, // front right
 		3, 2, 1	 // back
 	};
-	g_numIndsTestHardMesh = ARRAYSIZE(indsTestHardMesh);
+	g_numInds_TestHardMesh = ARRAYSIZE(indsTestHardMesh);
 	// --- INDEX BUFFER DATA ---
 	// --- CREATE VERTEX BUFFER ---
 	D3D11_BUFFER_DESC bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVertsTestHardMesh;
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestHardMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	D3D11_SUBRESOURCE_DATA subData = {};
 	subData.pSysMem = vertsTestHardMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBufferTestHardMesh);
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestHardMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numIndsTestHardMesh;
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestHardMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = indsTestHardMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBufferTestHardMesh);
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHardMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrldTestHardMesh, XMMatrixIdentity());
@@ -400,32 +432,32 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ----- TEST OBJ2HEADER MESH -----
 	// --- CONVERT VERTEX DATA ---
 	// get number of verts
-	g_numVertsTestLoadMesh = ARRAYSIZE(heavenTorch_data);
+	g_numVerts_TestLoadMesh = ARRAYSIZE(heavenTorch_data);
 	// store verts
-	S_VERTEX* vertsTestLoadMesh = new S_VERTEX[g_numVertsTestLoadMesh];
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVertsTestLoadMesh, vertsTestLoadMesh);
+	S_VERTEX* vertsTestLoadMesh = new S_VERTEX[g_numVerts_TestLoadMesh];
+	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, vertsTestLoadMesh);
 	// --- CONVERT VERTEX DATA ---
 	// get number of inds
-	g_numIndsTestLoadMesh = ARRAYSIZE(heavenTorch_indicies);
+	g_numInds_TestLoadMesh = ARRAYSIZE(heavenTorch_indicies);
 	// --- CREATE VERTEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVertsTestLoadMesh;
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = vertsTestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBufferTestLoadMesh);
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numIndsTestLoadMesh;
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = heavenTorch_indicies;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBufferTestLoadMesh);
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
 	// clear temp memory
 	delete[] vertsTestLoadMesh;
@@ -585,7 +617,7 @@ void Render()
 	ULONGLONG timeCur = GetTickCount64();
 	if (timeStart == 0)
 		timeStart = timeCur;
-	static float t = (timeCur - timeStart) / 1000.0f;
+	float t = (timeCur - timeStart) / 1000.0f;
 	float dt = (timeCur - timePrev) / 1000.0f;
 	timePrev = timeCur;
 	// ----- UPDATE TIME -----
@@ -704,23 +736,32 @@ void Render()
 	// ----- RENDER PREP -----
 	// clear render target view
 	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
+	// clear depth stencil view to 1.0 (max depth)
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// set viewport
 	g_p_deviceContext->RSSetViewports(1, &g_viewport);
 	// set render target view
 	// TODO: replace 3rd arg(nullptr) with zbuffer / depth stencil view
-	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, nullptr);
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	//g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
 	// set shader constant buffers
 	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
 	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
 	// ----- RENDER PREP -----
 
+	// ----- PER-INSTANCE DATA -----
+	XMMATRIX instanceOffsets[MAX_INSTANCES] = {};
+	XMFLOAT4 instanceColors[MAX_INSTANCES] = {};
+	// ----- PER-INSTANCE DATA -----
+
 	// ----- LIGHTS -----
 	// directional
-	S_LIGHT_DIR dLights[2] =
+	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR] =
 	{
 		// dir, color
 		{ { 1, 0, 0, 0 }, { 1, 0, 0, 1 } },
-		{ { 0, 1, 0, 0 }, { 0, 1, 0, 1 } }
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 1 } },
+		{}
 	};
 	// ----- LIGHTS -----
 
@@ -740,38 +781,46 @@ void Render()
 
 	// ----- TEST HARDCODED MESH -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBufferTestHardMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBufferTestHardMesh, DXGI_FORMAT_R32_UINT, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
 	// orbit mesh around origin
-	rotate = XMMatrixRotationY(0.5f * dt);
-	wrldTestHardMesh = wrldTestHardMesh * rotate;
+	rotate = XMMatrixRotationY(0.5f * t);
+	wrldTestHardMesh = rotate;
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(wrldTestHardMesh);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	cBufferVS.proj = XMMatrixTranspose(proj);
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColor, 0, 0);
 	// draw
-	g_p_deviceContext->DrawIndexed(g_numIndsTestHardMesh, 0, 0);
+	g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
 	// ----- TEST HARDCODED MESH -----
 
 	// ----- TEST OBJ2HEADER MESH -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBufferTestLoadMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBufferTestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
-	// orbit mesh around origin
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
+	// mesh position
+	XMMATRIX mat = XMMatrixTranslation(2, -0.5f, 0);
 	//rotate = XMMatrixRotationY(-0.5f * t);
-	XMMATRIX mat = XMMatrixTranslation(3, 0, 0);
-	//mat = mat * rotate;
+	//mat = rotate * mat;
+	// mesh instance offsets
+	instanceOffsets[0] = XMMatrixTranslation(0, 0, 0);
+	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
+	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranspose(mat);
 	cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	cBufferVS.proj = XMMatrixTranspose(proj);
+	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
+	cBufferVS.instanceOffsets[1] = instanceOffsets[1];
+	cBufferVS.instanceOffsets[2] = instanceOffsets[2];
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
@@ -780,7 +829,7 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	// draw
-	g_p_deviceContext->DrawIndexed(g_numIndsTestLoadMesh, 0, 0);
+	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestLoadMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
 	// ---------- FIRST RENDER PASS -----------
 
@@ -805,6 +854,9 @@ void Render()
 void Cleanup()
 {
 	// --- SHADERS ---
+	if (g_p_PS_SolidColor) g_p_PS_SolidColor->Release();
+	if (g_p_PS_InputColor) g_p_PS_InputColor->Release();
+	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
 	if (g_p_PS) g_p_PS->Release();
 	if (g_p_VS) g_p_VS->Release();
 	// --- CONSTANT BUFFERS ---
@@ -812,13 +864,16 @@ void Cleanup()
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
 	// --- VERT / IND BUFFERS ---
 	// test obj2header mesh
-	if (g_p_iBufferTestLoadMesh) g_p_iBufferTestLoadMesh->Release();
-	if (g_p_vBufferTestLoadMesh) g_p_vBufferTestLoadMesh->Release();
+	if (g_p_iBuffer_TestLoadMesh) g_p_iBuffer_TestLoadMesh->Release();
+	if (g_p_vBuffer_TestLoadMesh) g_p_vBuffer_TestLoadMesh->Release();
 	// test hardcoded mesh
-	if (g_p_iBufferTestHardMesh) g_p_iBufferTestHardMesh->Release();
-	if (g_p_vBufferTestHardMesh) g_p_vBufferTestHardMesh->Release();
+	if (g_p_iBuffer_TestHardMesh) g_p_iBuffer_TestHardMesh->Release();
+	if (g_p_vBuffer_TestHardMesh) g_p_vBuffer_TestHardMesh->Release();
 	// --- VERTEX LAYOUT ---
 	if (g_p_vertexLayout) g_p_vertexLayout->Release();
+	// --- DEPTH STENCILS ---
+	if (g_p_depthStencil) g_p_depthStencil->Release();
+	if (g_p_depthStencilView) g_p_depthStencilView->Release();
 	// --- RENDER TARGET VIEWS ---
 	if (g_p_renderTargetView) g_p_renderTargetView->Release();
 	// --- DEVICE / SWAP CHAIN ---

@@ -37,7 +37,6 @@ struct S_PSINPUT
 };
 
 // SHADER VARIABLES
-Texture2D txDiffuse2D : register(t0);
 TextureCube txDiffuseCube : register(t0);
 SamplerState samplerLinear : register(s0);
 
@@ -55,15 +54,7 @@ cbuffer ConstantBuffer : register(b1)
 // SHADER
 float4 main(S_PSINPUT _input) : SV_TARGET
 {
-	float4 finalColor = 0;
-	// directional lights
-	for (unsigned int i = 0; i < 3; i++)
-	{
-		finalColor += saturate(dot((float3)dLights[i].dir, _input.norm) * dLights[i].color);
-	}
-	// texture
-	//finalColor *= txDiffuse2D.Sample(samplerLinear, _input.tex.xy);
-	// return
+	float4 finalColor = txDiffuseCube.Sample(samplerLinear, _input.tex);
 	finalColor.a = 1;
 	return finalColor;
 }
