@@ -44,12 +44,13 @@ SamplerState samplerLinear : register(s0);
 // CONSTANT BUFFER
 cbuffer ConstantBuffer : register(b1)
 {
-    float4 ambientColor;
-    float4 instanceColors[MAX_INSTANCES];
-    S_LIGHT_DIR dLights[MAX_LIGHTS_DIR];
-    S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
-    S_LIGHT_SPT sLights[MAX_LIGHTS_SPT];
-    float t;
+	float4 ambientColor;
+	float4 instanceColors[MAX_INSTANCES];
+	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR];
+	//S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
+	//S_LIGHT_SPT sLights[MAX_LIGHTS_SPT];
+	float t;
+	float3 pad;
 }
 
 // SHADER
@@ -63,9 +64,9 @@ float4 main(S_PSINPUT _input) : SV_TARGET
     }
 	// texture
     float2 tex = _input.tex.xy;
-    tex.x *= sin(tex.x * t);
-    tex.y += cos(tex.y * t);
-    finalColor *= txDiffuse2D.Sample(samplerLinear, _input.tex.xy);
+    tex.x *= sin(tex.y * t);
+    tex.y *= cos(tex.x * t);
+    finalColor *= txDiffuse2D.Sample(samplerLinear, tex);
 	// return
     finalColor.a = 1;
     return finalColor;

@@ -44,12 +44,13 @@ SamplerState samplerLinear : register(s0);
 // CONSTANT BUFFER
 cbuffer ConstantBuffer : register(b1)
 {
-    float4 ambientColor;
-    float4 instanceColors[MAX_INSTANCES];
-    S_LIGHT_DIR dLights[MAX_LIGHTS_DIR];
-    S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
-    S_LIGHT_SPT sLights[MAX_LIGHTS_SPT];
-    float t;
+	float4 ambientColor;
+	float4 instanceColors[MAX_INSTANCES];
+	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR];
+	//S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
+	//S_LIGHT_SPT sLights[MAX_LIGHTS_SPT];
+	float t;
+	float3 pad;
 }
 
 // SHADER

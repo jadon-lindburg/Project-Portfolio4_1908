@@ -85,9 +85,10 @@ struct S_CBUFFER_PS
 	XMFLOAT4	ambientColor;					//16B
 	XMFLOAT4	instanceColors[MAX_INSTANCES];	//16B * MAX_INSTANCES
 	S_LIGHT_DIR	dLights[MAX_LIGHTS_DIR];		//32B * MAX_LIGHTS_DIR
-	S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];		//48B * MAX_LIGHTS_PNT
-	S_LIGHT_SPT	sLights[MAX_LIGHTS_SPT];		//68B * MAX_LIGHTS_SPT
+	//S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];		//48B * MAX_LIGHTS_PNT
+	//S_LIGHT_SPT	sLights[MAX_LIGHTS_SPT];		//68B * MAX_LIGHTS_SPT
 	FLOAT		t;								//4B
+	XMFLOAT3	pad;
 };
 // ---------- STRUCTS ----------
 
@@ -131,7 +132,6 @@ ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
 UINT						g_numVerts_TestLoadMesh = 0;
 UINT						g_numInds_TestLoadMesh = 0;
-LPCWSTR						g_texFilepath_TestLoadMesh = L"/Assets/heaventorch_diffuse.dds";
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
@@ -202,8 +202,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
 	UNREFERENCED_PARAMETER(hPrevInstance);
 	UNREFERENCED_PARAMETER(lpCmdLine);
-
-	// TODO: Place code here.
 
 	// Initialize global strings
 	LoadStringW(hInstance, IDS_APP_TITLE, g_szTitle, MAX_LOADSTRING);
@@ -877,20 +875,24 @@ void Render()
 		{ { 0, 1, 0, 0 }, { 1, 1, 1, 1 } },
 		{}
 	};
+	// point
+	S_LIGHT_PNT pLights[MAX_LIGHTS_PNT] = {};
+	// spot
+	S_LIGHT_SPT sLights[MAX_LIGHTS_SPT] = {};
 	// ----- LIGHTS -----
 
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
 	if (g_freelook)
-		cBufferVS.view = XMMatrixTranspose(XMMatrixInverse(&XMMatrixDeterminant(view), view));
+		cBufferVS.view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 	else
 	{
 		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
 		XMVECTOR at = wrld_TestHardMesh.r[3];
 		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
-		cBufferVS.view = XMMatrixTranspose(XMMatrixLookAtLH(eye, at, up));
+		cBufferVS.view = XMMatrixLookAtLH(eye, at, up);
 	}
-	cBufferVS.proj = XMMatrixTranspose(proj);
+	cBufferVS.proj = proj;
 	cBufferVS.t = t;
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 
@@ -907,7 +909,7 @@ void Render()
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = XMMatrixTranspose(wrld_TestHardMesh);
+	cBufferVS.wrld = wrld_TestHardMesh;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
@@ -929,7 +931,7 @@ void Render()
 	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
 	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = XMMatrixTranspose(wrld_TestLoadMesh);
+	cBufferVS.wrld = wrld_TestLoadMesh;
 	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
 	cBufferVS.instanceOffsets[1] = instanceOffsets[1];
 	cBufferVS.instanceOffsets[2] = instanceOffsets[2];

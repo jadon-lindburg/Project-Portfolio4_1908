@@ -1,3 +1,5 @@
+#pragma pack_matrix(row_major)
+
 // SHADER INPUT
 struct S_VSINPUT
 {
@@ -34,7 +36,7 @@ cbuffer ConstantBuffer : register(b0)
 S_VSOUTPUT main(S_VSINPUT _input)
 {
     S_VSOUTPUT output = (S_VSOUTPUT) 0;
-    output.pos = mul(instanceOffsets[_input.instanceID], _input.pos);
+    output.pos = mul(_input.pos, instanceOffsets[_input.instanceID]);
     output.pos = mul(output.pos, wrld);
     output.posWrld = output.pos;
     output.pos = mul(output.pos, view);
