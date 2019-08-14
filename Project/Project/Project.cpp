@@ -132,6 +132,12 @@ ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
 UINT						g_numVerts_TestLoadMesh = 0;
 UINT						g_numInds_TestLoadMesh = 0;
+// TEST PROCEDURAL MESH
+ID3D11Buffer*				g_p_vBuffer_TestProcMesh = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_TestProcMesh = nullptr;			//released
+UINT						g_numVerts_TestProcMesh = 0;
+UINT						g_numInds_TestProcMesh = 0;
+UINT						g_numDivisions_TestProcMesh = 11;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
@@ -192,6 +198,7 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX*);
+void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX*, UINT*);
 void				Render();
 void				Cleanup();
 
@@ -479,6 +486,40 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// clear temp memory
 	delete[] verts_TestLoadMesh;
 	// ----- TEST OBJ2HEADER MESH -----
+
+	// ----- TEST PROCEDURAL MESH -----
+	// calculate number of verts/inds
+	g_numVerts_TestProcMesh = g_numDivisions_TestProcMesh * g_numDivisions_TestProcMesh;
+	g_numInds_TestProcMesh = 6 * (g_numDivisions_TestProcMesh - 1) * (g_numDivisions_TestProcMesh - 1);
+	// --- GENERATE VERTEX / INDEX DATA ---
+	S_VERTEX gridOrigin = { { 0, 0, 0, 1 }, { 0, 1, 0 }, { 0, 0, 0 }, { 0.6f, 0.3f, 0.3f, 1 } };
+	S_VERTEX* verts_TestProcMesh = new S_VERTEX[g_numVerts_TestProcMesh];
+	UINT* inds_TestProcMesh = new UINT[g_numInds_TestProcMesh];
+	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, 10.0f, verts_TestProcMesh, inds_TestProcMesh);
+	// --- GENERATE VERTEX / INDEX DATA ---
+	// --- CREATE VERTEX BUFFER ---
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numDivisions_TestProcMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = verts_TestProcMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestProcMesh);
+	// --- CREATE VERTEX BUFFER ---
+	// --- CREATE INDEX BUFFER ---
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestProcMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = inds_TestProcMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestProcMesh);
+	// clear temp memory
+	delete[] verts_TestProcMesh;
+	delete[] inds_TestProcMesh;
+	// ----- TEST PROCEDURAL MESH -----
 	// ---------- MESHES ----------
 
 	// set type of topology to draw
@@ -645,6 +686,43 @@ void ProcessHeaderVerts(_OBJ_VERT_* _data, UINT _numVerts, S_VERTEX* _vertList)
 		//_RPTN(0, "COLOR : %f, %f, %f, %f\n\n", _vertList[i].color.x, _vertList[i].color.y, _vertList[i].color.z, _vertList[i].color.w);
 	}
 }
+
+void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale, S_VERTEX* _vertList, UINT* _indList)
+{
+	// set vertex data
+	for (UINT y = 0; y < _numDivisions; y++)
+		for (UINT x = 0; x < _numDivisions; x++)
+		{
+			UINT index = x + (y * _numDivisions);
+			// set vertex values to grid origin values
+			_vertList[index].pos = _origin.pos;
+			_vertList[index].norm = { 0, 1, 0 };
+			_vertList[index].tex = _origin.tex;
+			_vertList[index].color = _origin.color;
+			// calculate offset amount
+			FLOAT offset = (_scale * -0.5f) + (_scale / (_numDivisions - 1)) * x;
+			// offset vertex position
+			_vertList[index].pos.x += offset;
+			_vertList[index].pos.y += offset;
+			// offset vertex tex coord
+			_vertList[index].tex.x += offset;
+			_vertList[index].tex.y += offset;
+		}
+	// set indices
+	for (UINT y = 0; y < _numDivisions - 1; y++)
+		for (UINT x = 0; x < _numDivisions - 1; x++)
+		{
+			UINT index = 6 * (x + (y * (_numDivisions - 1)));
+			UINT vertIndex = x + (y * _numDivisions);
+			_indList[index + 0] = vertIndex;
+			_indList[index + 1] = vertIndex + 1;
+			_indList[index + 2] = vertIndex + _numDivisions + 1;
+			_indList[index + 3] = vertIndex;
+			_indList[index + 4] = vertIndex + _numDivisions + 1;
+			_indList[index + 5] = vertIndex + _numDivisions;
+		}
+}
+
 
 void Render()
 {
@@ -954,6 +1032,23 @@ void Render()
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestLoadMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
+	// ----- TEST PROCEDURAL MESH -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestProcMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestProcMesh, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	// set VS resources
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	// set PS resources
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColor, 0, 0);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_TestProcMesh, 0, 0);
+	// ----- TEST PROCEDURAL MESH -----
 	// ---------- FIRST RENDER PASS -----------
 
 	// present back buffer; change args to limit/sync framerate
@@ -992,6 +1087,8 @@ void Cleanup()
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
 	// --- VERT / IND BUFFERS ---
+	if (g_p_iBuffer_TestProcMesh) g_p_iBuffer_TestProcMesh->Release();
+	if (g_p_vBuffer_TestProcMesh) g_p_vBuffer_TestProcMesh->Release();
 	// test obj2header mesh
 	if (g_p_iBuffer_TestLoadMesh) g_p_iBuffer_TestLoadMesh->Release();
 	if (g_p_vBuffer_TestLoadMesh) g_p_vBuffer_TestLoadMesh->Release();
