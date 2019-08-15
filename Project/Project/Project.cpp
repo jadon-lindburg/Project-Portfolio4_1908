@@ -137,7 +137,8 @@ ID3D11Buffer*				g_p_vBuffer_TestProcMesh = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_TestProcMesh = nullptr;			//released
 UINT						g_numVerts_TestProcMesh = 0;
 UINT						g_numInds_TestProcMesh = 0;
-UINT						g_numDivisions_TestProcMesh = 11;
+UINT						g_numDivisions_TestProcMesh = 100;
+FLOAT						g_scale_TestProcMesh = 100.0f;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
@@ -167,6 +168,7 @@ XMFLOAT4X4					g_view;
 XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_wrld_TestHardMesh;
 XMFLOAT4X4					g_wrld_TestLoadMesh;
+XMFLOAT4X4					g_wrld_TestProcMesh;
 // ----- MATRICES -----
 
 // ----- CAMERA VALUES -----
@@ -197,8 +199,8 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX*);
-void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX*, UINT*);
+void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX**);
+void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX**, UINT&, UINT**, UINT&);
 void				Render();
 void				Cleanup();
 
@@ -458,8 +460,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// get number of verts
 	g_numVerts_TestLoadMesh = ARRAYSIZE(heavenTorch_data);
 	// store verts
-	S_VERTEX* verts_TestLoadMesh = new S_VERTEX[g_numVerts_TestLoadMesh];
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, verts_TestLoadMesh);
+	S_VERTEX* p_verts_TestLoadMesh = nullptr;
+	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, &p_verts_TestLoadMesh);
 	// --- CONVERT VERTEX DATA ---
 	// get number of inds
 	g_numInds_TestLoadMesh = ARRAYSIZE(heavenTorch_indicies);
@@ -470,7 +472,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = verts_TestLoadMesh;
+	subData.pSysMem = p_verts_TestLoadMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
@@ -483,28 +485,28 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	subData.pSysMem = heavenTorch_indicies;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
+	// set initial world matrix
+	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
 	// clear temp memory
-	delete[] verts_TestLoadMesh;
+	delete[] p_verts_TestLoadMesh;
 	// ----- TEST OBJ2HEADER MESH -----
 
 	// ----- TEST PROCEDURAL MESH -----
-	// calculate number of verts/inds
-	g_numVerts_TestProcMesh = g_numDivisions_TestProcMesh * g_numDivisions_TestProcMesh;
-	g_numInds_TestProcMesh = 6 * (g_numDivisions_TestProcMesh - 1) * (g_numDivisions_TestProcMesh - 1);
 	// --- GENERATE VERTEX / INDEX DATA ---
-	S_VERTEX gridOrigin = { { 0, 0, 0, 1 }, { 0, 1, 0 }, { 0, 0, 0 }, { 0.6f, 0.3f, 0.3f, 1 } };
-	S_VERTEX* verts_TestProcMesh = new S_VERTEX[g_numVerts_TestProcMesh];
-	UINT* inds_TestProcMesh = new UINT[g_numInds_TestProcMesh];
-	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, 10.0f, verts_TestProcMesh, inds_TestProcMesh);
-	// --- GENERATE VERTEX / INDEX DATA ---
+	S_VERTEX gridOrigin = { { 0, 0, 0, 1 }, { 0, 1, 0 }, { 0, 0, 0 }, {} };
+	S_VERTEX* p_verts_TestProcMesh = nullptr;
+	UINT* p_inds_TestProcMesh = nullptr;
+	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, g_scale_TestProcMesh,
+		&p_verts_TestProcMesh, g_numVerts_TestProcMesh, &p_inds_TestProcMesh, g_numInds_TestProcMesh);
+ 	// --- GENERATE VERTEX / INDEX DATA ---
 	// --- CREATE VERTEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numDivisions_TestProcMesh;
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestProcMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = verts_TestProcMesh;
+	subData.pSysMem = p_verts_TestProcMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestProcMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
@@ -514,11 +516,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = inds_TestProcMesh;
+	subData.pSysMem = p_inds_TestProcMesh;
 	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestProcMesh);
+	// --- CREATE INDEX BUFFER ---
+	// set initial world matrix
+	XMStoreFloat4x4(&g_wrld_TestProcMesh, XMMatrixIdentity());
 	// clear temp memory
-	delete[] verts_TestProcMesh;
-	delete[] inds_TestProcMesh;
+	delete[] p_verts_TestProcMesh;
+	delete[] p_inds_TestProcMesh;
 	// ----- TEST PROCEDURAL MESH -----
 	// ---------- MESHES ----------
 
@@ -563,8 +568,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// world
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
 	// view
-	XMVECTOR eye = XMVectorSet(0, -2, -10, 0);
-	XMVECTOR at = XMVectorSet(0, 0, 0, 0);
+	XMVECTOR eye = XMVectorSet(0, 6, -10, 0);
+	XMVECTOR at = XMVectorSet(0, 2, 0, 0);
 	XMVECTOR up = XMVectorSet(0, 1, 0, 0);
 	XMMATRIX view = XMMatrixLookAtLH(eye, at, up);
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
@@ -661,66 +666,93 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void ProcessHeaderVerts(_OBJ_VERT_* _data, UINT _numVerts, S_VERTEX* _vertList)
+void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_vertList)
 {
+	S_VERTEX* p_verts = new S_VERTEX[_numVerts];
 	for (UINT i = 0; i < _numVerts; i++)
 	{
 		// retrieve position
-		_vertList[i].pos.x = _data[i].pos[0];
-		_vertList[i].pos.y = _data[i].pos[1];
-		_vertList[i].pos.z = _data[i].pos[2];
-		_vertList[i].pos.w = 1;
+		p_verts[i].pos.x = _p_data[i].pos[0];
+		p_verts[i].pos.y = _p_data[i].pos[1];
+		p_verts[i].pos.z = _p_data[i].pos[2];
+		p_verts[i].pos.w = 1;
 		// retrieve normals
-		_vertList[i].norm.x = _data[i].nrm[0];
-		_vertList[i].norm.y = _data[i].nrm[1];
-		_vertList[i].norm.z = _data[i].nrm[2];
+		p_verts[i].norm.x = _p_data[i].nrm[0];
+		p_verts[i].norm.y = _p_data[i].nrm[1];
+		p_verts[i].norm.z = _p_data[i].nrm[2];
 		// retrieve texcoords
-		_vertList[i].tex.x = _data[i].uvw[0];
-		_vertList[i].tex.y = _data[i].uvw[1];
-		_vertList[i].tex.z = _data[i].uvw[2];
+		p_verts[i].tex.x = _p_data[i].uvw[0];
+		p_verts[i].tex.y = _p_data[i].uvw[1];
+		p_verts[i].tex.z = _p_data[i].uvw[2];
 		// set color
-		_vertList[i].color = XMFLOAT4(1, 1, 1, 1);
-		//_RPTN(0, "POS : %f, %f, %f, %f\n", _vertList[i].pos.x, _vertList[i].pos.y, _vertList[i].pos.z, _vertList[i].pos.w);
-		//_RPTN(0, "NORM : %f, %f, %f\n", _vertList[i].norm.x, _vertList[i].norm.y, _vertList[i].norm.z);
-		//_RPTN(0, "TEX : %f, %f, %f\n", _vertList[i].tex.x, _vertList[i].tex.y, _vertList[i].tex.z);
-		//_RPTN(0, "COLOR : %f, %f, %f, %f\n\n", _vertList[i].color.x, _vertList[i].color.y, _vertList[i].color.z, _vertList[i].color.w);
+		p_verts[i].color = XMFLOAT4(1, 1, 1, 1);
+		//_RPTN(0, "POS : %f, %f, %f, %f\n", p_verts[i].pos.x, p_verts[i].pos.y, p_verts[i].pos.z, p_verts[i].pos.w);
+		//_RPTN(0, "NORM : %f, %f, %f\n", p_verts[i].norm.x, p_verts[i].norm.y, p_verts[i].norm.z);
+		//_RPTN(0, "TEX : %f, %f, %f\n", p_verts[i].tex.x, p_verts[i].tex.y, p_verts[i].tex.z);
+		//_RPTN(0, "COLOR : %f, %f, %f, %f\n\n", p_verts[i].color.x, p_verts[i].color.y, p_verts[i].color.z, p_verts[i].color.w);
 	}
+	*_pp_vertList = p_verts;
 }
 
-void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale, S_VERTEX* _vertList, UINT* _indList)
+void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
+	S_VERTEX** _pp_vertList, UINT& _numVerts, UINT** _pp_indList, UINT& _numInds)
 {
+	// calculate number of verts / inds
+	_numVerts = _numDivisions * _numDivisions;
+	_numInds = 6 * (_numDivisions - 1) * (_numDivisions - 1);
 	// set vertex data
-	for (UINT y = 0; y < _numDivisions; y++)
+	S_VERTEX* p_verts = new S_VERTEX[_numVerts];
+	for (UINT z = 0; z < _numDivisions; z++)
 		for (UINT x = 0; x < _numDivisions; x++)
 		{
-			UINT index = x + (y * _numDivisions);
-			// set vertex values to grid origin values
-			_vertList[index].pos = _origin.pos;
-			_vertList[index].norm = { 0, 1, 0 };
-			_vertList[index].tex = _origin.tex;
-			_vertList[index].color = _origin.color;
+			UINT index = x + (z * _numDivisions);
+			assert(index < _numVerts);
 			// calculate offset amount
-			FLOAT offset = (_scale * -0.5f) + (_scale / (_numDivisions - 1)) * x;
-			// offset vertex position
-			_vertList[index].pos.x += offset;
-			_vertList[index].pos.y += offset;
-			// offset vertex tex coord
-			_vertList[index].tex.x += offset;
-			_vertList[index].tex.y += offset;
+			FLOAT offsetX = (_scale * -0.5f) + (_scale / (_numDivisions - 1)) * x;
+			FLOAT offsetZ = (_scale * -0.5f) + (_scale / (_numDivisions - 1)) * z;
+			// offset position
+			p_verts[index].pos = _origin.pos;
+			p_verts[index].pos.x += offsetX;
+			p_verts[index].pos.z += offsetZ;
+			// copy normal
+			p_verts[index].norm = { 0, 1, 0 };
+			// offset tex coord
+			p_verts[index].tex = _origin.tex;
+			p_verts[index].tex.x += offsetX;
+			p_verts[index].tex.y += offsetZ;
+			// randomize color
+			p_verts[index].color = {};
+			p_verts[index].color.x = (rand() % 1000) / 1000.0f;
+			p_verts[index].color.y = (rand() % 1000) / 1000.0f;
+			p_verts[index].color.z = (rand() % 1000) / 1000.0f;
+			p_verts[index].color.w = 1;
+
+			//_RPTN(0, "POS : %f, %f, %f, %f\n", p_verts[index].pos.x, p_verts[index].pos.y, p_verts[index].pos.z, p_verts[index].pos.w);
+			//_RPTN(0, "NORM : %f, %f, %f\n", p_verts[index].norm.x, p_verts[index].norm.y, p_verts[index].norm.z);
+			//_RPTN(0, "TEX : %f, %f, %f\n", p_verts[index].tex.x, p_verts[index].tex.y, p_verts[index].tex.z);
+			//_RPTN(0, "COLOR : %f, %f, %f, %f\n", p_verts[index].color.x, p_verts[index].color.y, p_verts[index].color.z, p_verts[index].color.w);
+			//_RPTN(0, "\n", NULL);
 		}
+	*_pp_vertList = p_verts;
 	// set indices
-	for (UINT y = 0; y < _numDivisions - 1; y++)
+	UINT* p_inds = new UINT[_numInds];
+	for (UINT z = 0; z < _numDivisions - 1; z++)
 		for (UINT x = 0; x < _numDivisions - 1; x++)
 		{
-			UINT index = 6 * (x + (y * (_numDivisions - 1)));
-			UINT vertIndex = x + (y * _numDivisions);
-			_indList[index + 0] = vertIndex;
-			_indList[index + 1] = vertIndex + 1;
-			_indList[index + 2] = vertIndex + _numDivisions + 1;
-			_indList[index + 3] = vertIndex;
-			_indList[index + 4] = vertIndex + _numDivisions + 1;
-			_indList[index + 5] = vertIndex + _numDivisions;
+			UINT vertIndex = x + (z * _numDivisions);
+			assert(vertIndex < _numVerts);
+			UINT index = 6 * (x + (z * (_numDivisions - 1)));
+			assert(index < _numInds);
+			p_inds[index + 0] = vertIndex;
+			p_inds[index + 1] = vertIndex + _numDivisions + 1;
+			p_inds[index + 2] = vertIndex + 1;
+			p_inds[index + 3] = vertIndex;
+			p_inds[index + 4] = vertIndex + _numDivisions;
+			p_inds[index + 5] = vertIndex + _numDivisions + 1;
+
+			//_RPTN(0, "%d, %d, %d,\n%d, %d, %d\n\n", p_inds[index + 0], p_inds[index + 1], p_inds[index + 2], p_inds[index + 3], p_inds[index + 4], p_inds[index + 5]);
 		}
+	*_pp_indList = p_inds;
 }
 
 
@@ -772,17 +804,18 @@ void Render()
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
 	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
 	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
+	XMMATRIX wrld_TestProcMesh = XMLoadFloat4x4(&g_wrld_TestProcMesh);
 	// ----- RETRIEVE MATRICES -----
 
 	// ----- UPDATE WORLD POSITIONS -----
 	// --- TEST HARDCODED MESH ---
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_TestHardMesh = XMMatrixTranslation(3, 2, 0) * rotate;
+	wrld_TestHardMesh = XMMatrixTranslation(3, 4, 0) * rotate;
 	// --- TEST HARDCODED MESH ---
 	// --- TEST OBJ2HEADER MESH ---
 	rotate = XMMatrixRotationY(-0.3f * t);
-	wrld_TestLoadMesh = rotate * XMMatrixTranslation(2, -2, 0);
+	wrld_TestLoadMesh = rotate * XMMatrixTranslation(2, 2, 0);
 	// --- TEST OBJ2HEADER MESH ---
 	// ----- UPDATE WORLD POSITIONS -----
 
