@@ -10,6 +10,8 @@
 #pragma comment(lib, "d3d11.lib")
 #include "DDSTextureLoader.h"
 
+#include "OBJDataLoader.h"
+
 // shaders
 #include "VS.csh"
 #include "PS.csh"
@@ -128,10 +130,10 @@ ID3D11Buffer*				g_p_iBuffer_TestHardMesh = nullptr;			//released
 UINT						g_numVerts_TestHardMesh = 0;
 UINT						g_numInds_TestHardMesh = 0;
 // TEST OBJ2HEADER MESH
-ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
-ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
-UINT						g_numVerts_TestLoadMesh = 0;
-UINT						g_numInds_TestLoadMesh = 0;
+ID3D11Buffer*				g_p_vBuffer_TestHeaderMesh = nullptr;		//released
+ID3D11Buffer*				g_p_iBuffer_TestHeaderMesh = nullptr;		//released
+UINT						g_numVerts_TestHeaderMesh = 0;
+UINT						g_numInds_TestHeaderMesh = 0;
 // TEST PROCEDURAL MESH
 ID3D11Buffer*				g_p_vBuffer_TestProcMesh = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_TestProcMesh = nullptr;			//released
@@ -139,13 +141,18 @@ UINT						g_numVerts_TestProcMesh = 0;
 UINT						g_numInds_TestProcMesh = 0;
 UINT						g_numDivisions_TestProcMesh = 100;
 FLOAT						g_scale_TestProcMesh = 100.0f;
+// TEST LOAD MESH
+ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
+UINT						g_numVerts_TestLoadMesh = 0;
+UINT						g_numInds_TestLoadMesh = 0;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
 // --- SHADER RESOURCE VIEWS ---
-ID3D11ShaderResourceView*	g_p_texRV_TestLoadmesh = nullptr;			//released
+ID3D11ShaderResourceView*	g_p_texRV_TestHeaderMesh = nullptr;			//released
 // --- SHADER RESOURCE VIEWS ---
 // --- SAMPLER STATES ---
 ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
@@ -167,8 +174,9 @@ XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
 XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_wrld_TestHardMesh;
-XMFLOAT4X4					g_wrld_TestLoadMesh;
+XMFLOAT4X4					g_wrld_TestHeaderMesh;
 XMFLOAT4X4					g_wrld_TestProcMesh;
+XMFLOAT4X4					g_wrld_TestLoadMesh;
 // ----- MATRICES -----
 
 // ----- CAMERA VALUES -----
@@ -201,6 +209,7 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX**);
 void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX**, UINT&, UINT**, UINT&);
+void				ProcessOBJData(const char*, S_VERTEX**, UINT&, UINT**, UINT&);
 void				Render();
 void				Cleanup();
 
@@ -458,37 +467,37 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ----- TEST OBJ2HEADER MESH -----
 	// --- CONVERT VERTEX DATA ---
 	// get number of verts
-	g_numVerts_TestLoadMesh = ARRAYSIZE(heavenTorch_data);
+	g_numVerts_TestHeaderMesh = ARRAYSIZE(heavenTorch_data);
 	// store verts
-	S_VERTEX* p_verts_TestLoadMesh = nullptr;
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestLoadMesh, &p_verts_TestLoadMesh);
+	S_VERTEX* p_verts_TestHeaderMesh = nullptr;
+	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh);
 	// --- CONVERT VERTEX DATA ---
 	// get number of inds
-	g_numInds_TestLoadMesh = ARRAYSIZE(heavenTorch_indicies);
+	g_numInds_TestHeaderMesh = ARRAYSIZE(heavenTorch_indicies);
 	// --- CREATE VERTEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestHeaderMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
-	subData.pSysMem = p_verts_TestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
+	subData.pSysMem = p_verts_TestHeaderMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestHeaderMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
 	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestHeaderMesh;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = heavenTorch_indicies;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHeaderMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
-	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, XMMatrixIdentity());
 	// clear temp memory
-	delete[] p_verts_TestLoadMesh;
+	delete[] p_verts_TestHeaderMesh;
 	// ----- TEST OBJ2HEADER MESH -----
 
 	// ----- TEST PROCEDURAL MESH -----
@@ -498,7 +507,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	UINT* p_inds_TestProcMesh = nullptr;
 	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, g_scale_TestProcMesh,
 		&p_verts_TestProcMesh, g_numVerts_TestProcMesh, &p_inds_TestProcMesh, g_numInds_TestProcMesh);
- 	// --- GENERATE VERTEX / INDEX DATA ---
+	// --- GENERATE VERTEX / INDEX DATA ---
 	// --- CREATE VERTEX BUFFER ---
 	bufferDesc = {};
 	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestProcMesh;
@@ -525,6 +534,38 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	delete[] p_verts_TestProcMesh;
 	delete[] p_inds_TestProcMesh;
 	// ----- TEST PROCEDURAL MESH -----
+
+	// ----- TEST LOAD MESH -----
+	// --- LOAD VERTEX / INDEX DATA ---
+	S_VERTEX* p_verts_TestLoadMesh = nullptr;
+	UINT* p_inds_TestLoadMesh = nullptr;
+	ProcessOBJData("Assets/test pyramid.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
+	// --- CREATE VERTEX BUFFER ---
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = p_verts_TestLoadMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
+	// --- CREATE VERTEX BUFFER ---
+	// --- CREATE INDEX BUFFER ---
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = p_inds_TestLoadMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
+	// --- CREATE INDEX BUFFER ---
+	// set initial world matrix
+	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
+	// clear temp memory
+	delete[] p_verts_TestLoadMesh;
+	delete[] p_inds_TestLoadMesh;
+	// ----- TEST LOAD MESH -----
 	// ---------- MESHES ----------
 
 	// set type of topology to draw
@@ -549,7 +590,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	// ---------- SHADER RESOURCE VIEWS ----------
 	// test Obj2Header mesh
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_texRV_TestLoadmesh);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_texRV_TestHeaderMesh);
 	// ---------- SHADER RESOURCE VIEWS ----------
 
 	// ---------- SAMPLER STATES ----------
@@ -578,7 +619,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	// mesh world matrices
 	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
-	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, XMMatrixIdentity());
 	// ---------- MATRICES ----------
 
 	// ATTACH D3D TO WINDOW
@@ -666,7 +707,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	return (INT_PTR)FALSE;
 }
 
-void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_vertList)
+void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_verts)
 {
 	S_VERTEX* p_verts = new S_VERTEX[_numVerts];
 	for (UINT i = 0; i < _numVerts; i++)
@@ -691,11 +732,11 @@ void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_vert
 		//_RPTN(0, "TEX : %f, %f, %f\n", p_verts[i].tex.x, p_verts[i].tex.y, p_verts[i].tex.z);
 		//_RPTN(0, "COLOR : %f, %f, %f, %f\n\n", p_verts[i].color.x, p_verts[i].color.y, p_verts[i].color.z, p_verts[i].color.w);
 	}
-	*_pp_vertList = p_verts;
+	*_pp_verts = p_verts;
 }
 
 void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
-	S_VERTEX** _pp_vertList, UINT& _numVerts, UINT** _pp_indList, UINT& _numInds)
+	S_VERTEX** _pp_verts, UINT& _numVerts, UINT** _pp_inds, UINT& _numInds)
 {
 	// calculate number of verts / inds
 	_numVerts = _numDivisions * _numDivisions;
@@ -733,7 +774,7 @@ void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
 			//_RPTN(0, "COLOR : %f, %f, %f, %f\n", p_verts[index].color.x, p_verts[index].color.y, p_verts[index].color.z, p_verts[index].color.w);
 			//_RPTN(0, "\n", NULL);
 		}
-	*_pp_vertList = p_verts;
+	*_pp_verts = p_verts;
 	// set indices
 	UINT* p_inds = new UINT[_numInds];
 	for (UINT z = 0; z < _numDivisions - 1; z++)
@@ -752,9 +793,43 @@ void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
 
 			//_RPTN(0, "%d, %d, %d,\n%d, %d, %d\n\n", p_inds[index + 0], p_inds[index + 1], p_inds[index + 2], p_inds[index + 3], p_inds[index + 4], p_inds[index + 5]);
 		}
-	*_pp_indList = p_inds;
+	*_pp_inds = p_inds;
 }
 
+void ProcessOBJData(const char* _filepath, S_VERTEX** _pp_verts, UINT& _numVerts, UINT** _pp_inds, UINT& _numInds)
+{
+	S_OBJ_DATA data = LoadOBJData(_filepath);
+	_numVerts = data.numVerts;
+	_numInds = data.numInds;
+	// copy vertex data
+	S_VERTEX* verts = new S_VERTEX[_numVerts];
+	for (UINT i = 0; i < _numVerts; i++)
+	{
+		// copy position
+		verts[i].pos.x = data.vertices[i].pos[0];
+		verts[i].pos.y = data.vertices[i].pos[1];
+		verts[i].pos.z = data.vertices[i].pos[2];
+		verts[i].pos.w = 1;
+		// copy normal
+		verts[i].norm.x = data.vertices[i].norm[0];
+		verts[i].norm.y = data.vertices[i].norm[1];
+		verts[i].norm.z = data.vertices[i].norm[2];
+		// copy texcoord
+		verts[i].tex.x = data.vertices[i].tex[0];
+		verts[i].tex.y = data.vertices[i].tex[1];
+		verts[i].tex.z = data.vertices[i].tex[2];
+		// set color
+		verts[i].color = { 1, 1, 1, 1 };
+	}
+	*_pp_verts = verts;
+	// copy index data
+	UINT* inds = new UINT[_numInds];
+	for (UINT i = 0; i < _numInds; i++)
+	{
+		inds[i] = data.indices[i];
+	}
+	*_pp_inds = inds;
+}
 
 void Render()
 {
@@ -803,8 +878,9 @@ void Render()
 	XMMATRIX view = XMLoadFloat4x4(&g_view);
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
 	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
-	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
+	XMMATRIX wrld_TestHeaderMesh = XMLoadFloat4x4(&g_wrld_TestHeaderMesh);
 	XMMATRIX wrld_TestProcMesh = XMLoadFloat4x4(&g_wrld_TestProcMesh);
+	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
 	// ----- RETRIEVE MATRICES -----
 
 	// ----- UPDATE WORLD POSITIONS -----
@@ -815,7 +891,7 @@ void Render()
 	// --- TEST HARDCODED MESH ---
 	// --- TEST OBJ2HEADER MESH ---
 	rotate = XMMatrixRotationY(-0.3f * t);
-	wrld_TestLoadMesh = rotate * XMMatrixTranslation(2, 2, 0);
+	wrld_TestHeaderMesh = rotate * XMMatrixTranslation(2, 2, 0);
 	// --- TEST OBJ2HEADER MESH ---
 	// ----- UPDATE WORLD POSITIONS -----
 
@@ -1035,14 +1111,14 @@ void Render()
 
 	// ----- TEST OBJ2HEADER MESH -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHeaderMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHeaderMesh, DXGI_FORMAT_R32_UINT, 0);
 	// mesh instance offsets
 	instanceOffsets[0] = XMMatrixTranslation(0, 0, 0);
 	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
 	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = wrld_TestLoadMesh;
+	cBufferVS.wrld = wrld_TestHeaderMesh;
 	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
 	cBufferVS.instanceOffsets[1] = instanceOffsets[1];
 	cBufferVS.instanceOffsets[2] = instanceOffsets[2];
@@ -1052,7 +1128,7 @@ void Render()
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestLoadmesh);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
 	if (g_defaultPS) // use default shader
 	{
@@ -1063,7 +1139,7 @@ void Render()
 		g_p_deviceContext->PSSetShader(g_p_PS_Trig, 0, 0);
 	}
 	// draw
-	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestLoadMesh, 3, 0, 0, 0);
+	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestHeaderMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
 	// ----- TEST PROCEDURAL MESH -----
 	// set vert/ind buffers
@@ -1096,6 +1172,7 @@ void Render()
 	XMStoreFloat4x4(&g_view, view);
 	XMStoreFloat4x4(&g_proj, proj);
 	XMStoreFloat4x4(&g_wrld_TestHardMesh, wrld_TestHardMesh);
+	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, wrld_TestHeaderMesh);
 	XMStoreFloat4x4(&g_wrld_TestLoadMesh, wrld_TestLoadMesh);
 	// ----- STORE MATRICES -----
 
@@ -1115,16 +1192,20 @@ void Cleanup()
 	// --- SAMPLER STATES ---
 	if (g_p_samplerLinear) g_p_samplerLinear->Release();
 	// --- SHADER RESOURCE VIEWS ---
-	if (g_p_texRV_TestLoadmesh) g_p_texRV_TestLoadmesh->Release();
+	if (g_p_texRV_TestHeaderMesh) g_p_texRV_TestHeaderMesh->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
 	// --- VERT / IND BUFFERS ---
+	// test load mesh
+	if (g_p_iBuffer_TestLoadMesh) g_p_iBuffer_TestLoadMesh->Release();
+	if (g_p_vBuffer_TestLoadMesh) g_p_vBuffer_TestLoadMesh->Release();
+	// test procedural mesh
 	if (g_p_iBuffer_TestProcMesh) g_p_iBuffer_TestProcMesh->Release();
 	if (g_p_vBuffer_TestProcMesh) g_p_vBuffer_TestProcMesh->Release();
 	// test obj2header mesh
-	if (g_p_iBuffer_TestLoadMesh) g_p_iBuffer_TestLoadMesh->Release();
-	if (g_p_vBuffer_TestLoadMesh) g_p_vBuffer_TestLoadMesh->Release();
+	if (g_p_iBuffer_TestHeaderMesh) g_p_iBuffer_TestHeaderMesh->Release();
+	if (g_p_vBuffer_TestHeaderMesh) g_p_vBuffer_TestHeaderMesh->Release();
 	// test hardcoded mesh
 	if (g_p_iBuffer_TestHardMesh) g_p_iBuffer_TestHardMesh->Release();
 	if (g_p_vBuffer_TestHardMesh) g_p_vBuffer_TestHardMesh->Release();
