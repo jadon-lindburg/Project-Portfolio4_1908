@@ -47,7 +47,7 @@ cbuffer ConstantBuffer : register(b1)
 	float4 ambientColor;
 	float4 instanceColors[MAX_INSTANCES];
 	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR];
-	//S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
+	S_LIGHT_PNT pLights[MAX_LIGHTS_PNT];
 	//S_LIGHT_SPT sLights[MAX_LIGHTS_SPT];
 	float t;
 	float3 pad;
@@ -56,18 +56,35 @@ cbuffer ConstantBuffer : register(b1)
 // SHADER
 float4 main(S_PSINPUT _input) : SV_TARGET
 {
-    float4 finalColor = ambientColor;
-	// directional lights
-    for (unsigned int i = 0; i < 3; i++)
-    {
-        finalColor += saturate(dot((float3) dLights[i].dir, _input.norm) * dLights[i].color);
-    }
 	// texture
     float2 tex = _input.tex.xy;
     tex.x *= sin(tex.y * t);
     tex.y *= cos(tex.x * t);
-    finalColor *= txDiffuse2D.Sample(samplerLinear, tex);
-	// return
-    finalColor.a = 1;
-    return finalColor;
+	_input.norm = normalize(_input.norm);
+	float4 diffuse = txDiffuse2D.Sample(samplerLinear, tex);
+	float4 finalColor = float4(0, 0, 0, 0);
+	// point lights
+	for (unsigned int j = 0; j < MAX_LIGHTS_PNT; j++)
+	{
+		float3 lightToPixelVector = pLights[j].pos.xyz - _input.posWrld.xyz;
+		float d = length(lightToPixelVector);
+		if (d <= pLights[j].range)
+		{
+			lightToPixelVector /= d;
+			float lightIntensity = dot(lightToPixelVector, _input.norm);
+			if (lightIntensity > 0)
+			{
+				finalColor += lightIntensity * diffuse * pLights[j].color;
+				finalColor /= pLights[j].atten[0] + (pLights[j].atten[1] * d) + (pLights[j].atten[2] * (d * d));
+			}
+		}
+	}
+	// directional lights
+	for (unsigned int i = 0; i < MAX_LIGHTS_DIR; i++)
+	{
+		finalColor += saturate(dot((float3) dLights[i].dir, _input.norm) * dLights[i].color);
+	}
+	finalColor = saturate(finalColor + (ambientColor * diffuse));
+	finalColor.a = 1;
+	return finalColor;
 }

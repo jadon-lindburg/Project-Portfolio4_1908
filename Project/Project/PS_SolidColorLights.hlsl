@@ -37,10 +37,6 @@ struct S_PSINPUT
 	float4 posWrld : WORLDPOSITION;
 };
 
-// SHADER VARIABLES
-Texture2D txDiffuse2D : register(t0);
-SamplerState samplerLinear : register(s0);
-
 // CONSTANT BUFFER
 cbuffer ConstantBuffer : register(b1)
 {
@@ -57,7 +53,6 @@ cbuffer ConstantBuffer : register(b1)
 float4 main(S_PSINPUT _input) : SV_TARGET
 {
 	_input.norm = normalize(_input.norm);
-	float4 diffuse = txDiffuse2D.Sample(samplerLinear, _input.tex.xy);
 	float4 finalColor = float4(0, 0, 0, 0);
 	// point lights
 	for (unsigned int j = 0; j < MAX_LIGHTS_PNT; j++)
@@ -70,7 +65,7 @@ float4 main(S_PSINPUT _input) : SV_TARGET
 			float lightIntensity = dot(lightToPixelVector, _input.norm);
 			if (lightIntensity > 0)
 			{
-				finalColor += lightIntensity * diffuse * pLights[j].color;
+				finalColor += lightIntensity * pLights[j].color;
 				finalColor /= pLights[j].atten[0] + (pLights[j].atten[1] * d) + (pLights[j].atten[2] * (d * d));
 			}
 		}
@@ -80,7 +75,7 @@ float4 main(S_PSINPUT _input) : SV_TARGET
 	{
 		finalColor += saturate(dot((float3) dLights[i].dir, _input.norm) * dLights[i].color);
 	}
-	finalColor = saturate(finalColor + (ambientColor * diffuse));
+	finalColor = saturate(finalColor + ambientColor);
 	finalColor.a = 1;
 	return finalColor;
 }

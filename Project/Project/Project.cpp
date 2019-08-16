@@ -17,8 +17,10 @@
 #include "PS.csh"
 #include "PS_CubeMap.csh"
 #include "PS_InputColor.csh"
+#include "PS_InputColorLights.csh"
 #include "PS_SolidColor.csh"
-#include "PS_Trig.csh"
+#include "PS_SolidColorLights.csh"
+#include "PS_Distort.csh"
 
 // meshes (Obj2Header)
 #include "Assets/heavenTorch.h"
@@ -87,7 +89,7 @@ struct S_CBUFFER_PS
 	XMFLOAT4	ambientColor;					//16B
 	XMFLOAT4	instanceColors[MAX_INSTANCES];	//16B * MAX_INSTANCES
 	S_LIGHT_DIR	dLights[MAX_LIGHTS_DIR];		//32B * MAX_LIGHTS_DIR
-	//S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];		//48B * MAX_LIGHTS_PNT
+	S_LIGHT_PNT	pLights[MAX_LIGHTS_PNT];		//48B * MAX_LIGHTS_PNT
 	//S_LIGHT_SPT	sLights[MAX_LIGHTS_SPT];		//68B * MAX_LIGHTS_SPT
 	FLOAT		t;								//4B
 	XMFLOAT3	pad;
@@ -164,8 +166,10 @@ ID3D11VertexShader*			g_p_VS = nullptr;							//released
 ID3D11PixelShader*			g_p_PS = nullptr;							//released
 ID3D11PixelShader*			g_p_PS_CubeMap = nullptr;					//released
 ID3D11PixelShader*			g_p_PS_InputColor = nullptr;				//released
+ID3D11PixelShader*			g_p_PS_InputColorLights = nullptr;			//released
 ID3D11PixelShader*			g_p_PS_SolidColor = nullptr;				//released
-ID3D11PixelShader*			g_p_PS_Trig = nullptr;						//released
+ID3D11PixelShader*			g_p_PS_SolidColorLights = nullptr;			//released
+ID3D11PixelShader*			g_p_PS_Distort = nullptr;					//released
 // --- SHADERS ---
 // ----- D3D vars -----
 
@@ -396,8 +400,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreatePixelShader(PS, sizeof(PS), nullptr, &g_p_PS);
 	hr = g_p_device->CreatePixelShader(PS_CubeMap, sizeof(PS_CubeMap), nullptr, &g_p_PS_CubeMap);
 	hr = g_p_device->CreatePixelShader(PS_InputColor, sizeof(PS_InputColor), nullptr, &g_p_PS_InputColor);
+	hr = g_p_device->CreatePixelShader(PS_InputColorLights, sizeof(PS_InputColorLights), nullptr, &g_p_PS_InputColorLights);
 	hr = g_p_device->CreatePixelShader(PS_SolidColor, sizeof(PS_SolidColor), nullptr, &g_p_PS_SolidColor);
-	hr = g_p_device->CreatePixelShader(PS_Trig, sizeof(PS_Trig), nullptr, &g_p_PS_Trig);
+	hr = g_p_device->CreatePixelShader(PS_SolidColorLights, sizeof(PS_SolidColorLights), nullptr, &g_p_PS_SolidColorLights);
+	hr = g_p_device->CreatePixelShader(PS_Distort, sizeof(PS_Distort), nullptr, &g_p_PS_Distort);
 	// ----- PIXEL SHADERS -----
 	// ---------- SHADERS ----------
 
@@ -883,16 +889,52 @@ void Render()
 	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
 	// ----- RETRIEVE MATRICES -----
 
+	// ----- LIGHTS -----
+	// directional
+#define LIGHTS_DIR 1
+	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR] =
+	{
+		// dir, color
+		{ { 0, 1, 0, 0 }, { 0, 0, 1, 1 } },
+		{},
+		{}
+	};
+	// point
+#define LIGHTS_PNT 1
+	S_LIGHT_PNT pLights[MAX_LIGHTS_PNT] =
+	{
+		// pos, range, atten, color
+		{ { 1, 0.5, 0, 1 }, 10, { 0, 0, 0.5f}, { 0, 1, 0, 1 } },
+		{},
+		{}
+	};
+	// spot
+	S_LIGHT_SPT sLights[MAX_LIGHTS_SPT] = {};
+	// ----- LIGHTS -----
+
 	// ----- UPDATE WORLD POSITIONS -----
 	// --- TEST HARDCODED MESH ---
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_TestHardMesh = XMMatrixTranslation(3, 4, 0) * rotate;
+	wrld_TestHardMesh = XMMatrixTranslation(5, 2, 0) * rotate;
 	// --- TEST HARDCODED MESH ---
 	// --- TEST OBJ2HEADER MESH ---
 	rotate = XMMatrixRotationY(-0.3f * t);
-	wrld_TestHeaderMesh = rotate * XMMatrixTranslation(2, 2, 0);
+	wrld_TestHeaderMesh = rotate * XMMatrixTranslation(2, 0, 0);
 	// --- TEST OBJ2HEADER MESH ---
+	// --- TEST PROCEDURAL MESH ---
+	wrld_TestProcMesh = XMMatrixTranslation(0, -1, 0);
+	// --- TEST PROCEDURAL MESH ---
+	// --- LIGHTS ---
+	// DLIGHT 0
+	XMMATRIX lightMatrix = XMMatrixTranslation(dLights[0].dir.x, dLights[0].dir.y, dLights[0].dir.z);
+	rotate = XMMatrixRotationZ(0.4f * t);
+	XMStoreFloat4(&dLights[0].dir, (lightMatrix * rotate).r[3]);
+	// PLIGHT 0
+	lightMatrix = XMMatrixTranslation(pLights[0].pos.x, pLights[0].pos.y, pLights[0].pos.z);
+	rotate = XMMatrixRotationY(0.7f * t);
+	XMStoreFloat4(&pLights[0].pos, (lightMatrix * rotate).r[3]);
+	// --- LIGHTS ---
 	// ----- UPDATE WORLD POSITIONS -----
 
 	// ----- HANDLE TOGGLES -----
@@ -1053,21 +1095,6 @@ void Render()
 	XMFLOAT4 instanceColors[MAX_INSTANCES] = {};
 	// ----- PER-INSTANCE DATA -----
 
-	// ----- LIGHTS -----
-	// directional
-	S_LIGHT_DIR dLights[MAX_LIGHTS_DIR] =
-	{
-		// dir, color
-		{ { 1, 0, 0, 0 }, { 0, 1, 1, 1 } },
-		{ { 0, 1, 0, 0 }, { 1, 1, 1, 1 } },
-		{}
-	};
-	// point
-	S_LIGHT_PNT pLights[MAX_LIGHTS_PNT] = {};
-	// spot
-	S_LIGHT_SPT sLights[MAX_LIGHTS_SPT] = {};
-	// ----- LIGHTS -----
-
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
 	if (g_freelook)
@@ -1084,9 +1111,9 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 
 	// pixel
-	cBufferPS.ambientColor = { 0.1f, 0.1f, 0.1f, 1 };
+	cBufferPS.ambientColor = { 0.5f, 0, 0, 1 };
 	cBufferPS.dLights[0] = dLights[0];
-	cBufferPS.dLights[1] = dLights[1];
+	cBufferPS.pLights[0] = pLights[0];
 	cBufferPS.t = t;
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
@@ -1104,11 +1131,10 @@ void Render()
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShader(g_p_PS_InputColor, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
 	// ----- TEST HARDCODED MESH -----
-
 	// ----- TEST OBJ2HEADER MESH -----
 	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHeaderMesh, strides, offsets);
@@ -1136,7 +1162,7 @@ void Render()
 	}
 	else // use fancy shader
 	{
-		g_p_deviceContext->PSSetShader(g_p_PS_Trig, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);
 	}
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestHeaderMesh, 3, 0, 0, 0);
@@ -1146,18 +1172,74 @@ void Render()
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestProcMesh, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestProcMesh, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = XMMatrixIdentity();
+	cBufferVS.wrld = wrld_TestProcMesh;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
 	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShader(g_p_PS_InputColor, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_TestProcMesh, 0, 0);
 	// ----- TEST PROCEDURAL MESH -----
+	// ----- VISUAL LIGHTS -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
+	// clear offsets
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[3] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[4] = XMMatrixIdentity();
+	// size scaling
+	FLOAT sizeScale = 1.5f;
+	// distance scaling
+	FLOAT distScale = 1.0f;
+	// --- DIRECTIONAL ---
+	sizeScale = 2.0f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	distScale = 10.0f;
+	for (UINT i = 0; i < LIGHTS_DIR; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
+			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = dLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
+	}
+	// --- DIRECTIONAL ---
+	// --- POINT ---
+	sizeScale = 0.25f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	for (UINT i = 0; i < LIGHTS_PNT; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = pLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
+	}
+	// --- POINT ---
+	// ----- VISUAL LIGHTS -----
 	// ---------- FIRST RENDER PASS -----------
 
 	// present back buffer; change args to limit/sync framerate
@@ -1183,8 +1265,10 @@ void Render()
 void Cleanup()
 {
 	// --- SHADERS ---
-	if (g_p_PS_Trig) g_p_PS_Trig->Release();
+	if (g_p_PS_Distort) g_p_PS_Distort->Release();
+	if (g_p_PS_SolidColorLights) g_p_PS_SolidColorLights->Release();
 	if (g_p_PS_SolidColor) g_p_PS_SolidColor->Release();
+	if (g_p_PS_InputColorLights) g_p_PS_InputColorLights->Release();
 	if (g_p_PS_InputColor) g_p_PS_InputColor->Release();
 	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
 	if (g_p_PS) g_p_PS->Release();
