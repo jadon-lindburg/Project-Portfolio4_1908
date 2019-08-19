@@ -89,5 +89,8 @@
     <FxCompile Include="PS_InputColorLights.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="VS_Distort.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

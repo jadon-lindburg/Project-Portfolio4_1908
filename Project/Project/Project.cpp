@@ -14,6 +14,7 @@
 
 // shaders
 #include "VS.csh"
+#include "VS_Distort.csh"
 #include "PS.csh"
 #include "PS_CubeMap.csh"
 #include "PS_InputColor.csh"
@@ -162,6 +163,7 @@ ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
 // --- SHADERS ---
 // VERTEX
 ID3D11VertexShader*			g_p_VS = nullptr;							//released
+ID3D11VertexShader*			g_p_VS_Distort = nullptr;					//released
 // PIXEL
 ID3D11PixelShader*			g_p_PS = nullptr;							//released
 ID3D11PixelShader*			g_p_PS_CubeMap = nullptr;					//released
@@ -202,6 +204,7 @@ const FLOAT					g_camFarMax = 100.0f;
 
 // ----- TOGGLES -----
 bool						g_freelook = true;
+bool						g_defaultVS = true;
 bool						g_defaultPS = true;
 // ----- TOGGLES -----
 // ---------- GLOBAL VARS ----------
@@ -394,6 +397,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	// ---------- SHADERS ----------
 	// ----- VERTEX SHADERS -----
+	hr = g_p_device->CreateVertexShader(VS_Distort, sizeof(VS_Distort), nullptr, &g_p_VS_Distort);
 	hr = g_p_device->CreateVertexShader(VS, sizeof(VS), nullptr, &g_p_VS);
 	// ----- VERTEX SHADERS -----
 	// ----- PIXEL SHADERS -----
@@ -962,6 +966,18 @@ void Render()
 	{
 		keyHeld_defaultPS = false;
 	}
+	// vertex shader
+	static bool keyHeld_defaultVS = false;
+	bool keyPressed_defaultVS = GetAsyncKeyState('1');
+	if (!keyHeld_defaultVS && keyPressed_defaultVS) // toggle defaultVS
+	{
+		keyHeld_defaultVS = true;
+		g_defaultVS = !g_defaultVS;
+	}
+	if (keyHeld_defaultVS && !keyPressed_defaultVS) // reset defaultVS held flag
+	{
+		keyHeld_defaultVS = false;
+	}
 	// ----- HANDLE TOGGLES -----
 
 	// ----- UPDATE CAMERA -----
@@ -1156,6 +1172,14 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
+	if (g_defaultVS) // use default shader
+	{
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	}
+	else // use fancy shader
+	{
+		g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);
+	}
 	if (g_defaultPS) // use default shader
 	{
 		g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
