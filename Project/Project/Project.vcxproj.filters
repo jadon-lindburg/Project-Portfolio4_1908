@@ -92,5 +92,11 @@
     <FxCompile Include="VS_Distort.hlsl">
       <Filter>Shader Files</Filter>
     </FxCompile>
+    <FxCompile Include="GS.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
+    <FxCompile Include="GS_Distort.hlsl">
+      <Filter>Shader Files</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

@@ -15,13 +15,15 @@
 // shaders
 #include "VS.csh"
 #include "VS_Distort.csh"
+#include "GS.csh"
+#include "GS_Distort.csh"
 #include "PS.csh"
 #include "PS_CubeMap.csh"
+#include "PS_Distort.csh"
 #include "PS_InputColor.csh"
 #include "PS_InputColorLights.csh"
 #include "PS_SolidColor.csh"
 #include "PS_SolidColorLights.csh"
-#include "PS_Distort.csh"
 
 // meshes (Obj2Header)
 #include "Assets/heavenTorch.h"
@@ -164,14 +166,17 @@ ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
 // VERTEX
 ID3D11VertexShader*			g_p_VS = nullptr;							//released
 ID3D11VertexShader*			g_p_VS_Distort = nullptr;					//released
+// GEOMETRY
+ID3D11GeometryShader*		g_p_GS = nullptr;							//released
+ID3D11GeometryShader*		g_p_GS_Distort = nullptr;					//released
 // PIXEL
 ID3D11PixelShader*			g_p_PS = nullptr;							//released
 ID3D11PixelShader*			g_p_PS_CubeMap = nullptr;					//released
+ID3D11PixelShader*			g_p_PS_Distort = nullptr;					//released
 ID3D11PixelShader*			g_p_PS_InputColor = nullptr;				//released
 ID3D11PixelShader*			g_p_PS_InputColorLights = nullptr;			//released
 ID3D11PixelShader*			g_p_PS_SolidColor = nullptr;				//released
 ID3D11PixelShader*			g_p_PS_SolidColorLights = nullptr;			//released
-ID3D11PixelShader*			g_p_PS_Distort = nullptr;					//released
 // --- SHADERS ---
 // ----- D3D vars -----
 
@@ -205,6 +210,7 @@ const FLOAT					g_camFarMax = 100.0f;
 // ----- TOGGLES -----
 bool						g_freelook = true;
 bool						g_defaultVS = true;
+bool						g_defaultGS = true;
 bool						g_defaultPS = true;
 // ----- TOGGLES -----
 // ---------- GLOBAL VARS ----------
@@ -400,14 +406,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreateVertexShader(VS_Distort, sizeof(VS_Distort), nullptr, &g_p_VS_Distort);
 	hr = g_p_device->CreateVertexShader(VS, sizeof(VS), nullptr, &g_p_VS);
 	// ----- VERTEX SHADERS -----
+	// ----- GEOMETRY SHADERS -----
+	hr = g_p_device->CreateGeometryShader(GS, sizeof(GS), nullptr, &g_p_GS);
+	hr = g_p_device->CreateGeometryShader(GS_Distort, sizeof(GS_Distort), nullptr, &g_p_GS_Distort);
+	// ----- GEOMETRY SHADERS -----
 	// ----- PIXEL SHADERS -----
 	hr = g_p_device->CreatePixelShader(PS, sizeof(PS), nullptr, &g_p_PS);
 	hr = g_p_device->CreatePixelShader(PS_CubeMap, sizeof(PS_CubeMap), nullptr, &g_p_PS_CubeMap);
+	hr = g_p_device->CreatePixelShader(PS_Distort, sizeof(PS_Distort), nullptr, &g_p_PS_Distort);
 	hr = g_p_device->CreatePixelShader(PS_InputColor, sizeof(PS_InputColor), nullptr, &g_p_PS_InputColor);
 	hr = g_p_device->CreatePixelShader(PS_InputColorLights, sizeof(PS_InputColorLights), nullptr, &g_p_PS_InputColorLights);
 	hr = g_p_device->CreatePixelShader(PS_SolidColor, sizeof(PS_SolidColor), nullptr, &g_p_PS_SolidColor);
 	hr = g_p_device->CreatePixelShader(PS_SolidColorLights, sizeof(PS_SolidColorLights), nullptr, &g_p_PS_SolidColorLights);
-	hr = g_p_device->CreatePixelShader(PS_Distort, sizeof(PS_Distort), nullptr, &g_p_PS_Distort);
 	// ----- PIXEL SHADERS -----
 	// ---------- SHADERS ----------
 
@@ -558,7 +568,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = p_verts_TestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
+	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
 	bufferDesc = {};
@@ -568,7 +578,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bufferDesc.CPUAccessFlags = 0;
 	subData = {};
 	subData.pSysMem = p_inds_TestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
+	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
@@ -954,18 +964,6 @@ void Render()
 	{
 		keyHeld_freelook = false;
 	}
-	// pixel shader
-	static bool keyHeld_defaultPS = false;
-	bool keyPressed_defaultPS = GetAsyncKeyState('2');
-	if (!keyHeld_defaultPS && keyPressed_defaultPS) // toggle defaultPS
-	{
-		keyHeld_defaultPS = true;
-		g_defaultPS = !g_defaultPS;
-	}
-	if (keyHeld_defaultPS && !keyPressed_defaultPS) // reset defaultPS held flag
-	{
-		keyHeld_defaultPS = false;
-	}
 	// vertex shader
 	static bool keyHeld_defaultVS = false;
 	bool keyPressed_defaultVS = GetAsyncKeyState('1');
@@ -978,58 +976,52 @@ void Render()
 	{
 		keyHeld_defaultVS = false;
 	}
+	// geometry shader
+	static bool keyHeld_defaultGS = false;
+	bool keyPressed_defaultGS = GetAsyncKeyState('2');
+	if (!keyHeld_defaultGS && keyPressed_defaultGS) // toggle defaultGS
+	{
+		keyHeld_defaultGS = true;
+		g_defaultGS = !g_defaultGS;
+	}
+	if (keyHeld_defaultGS && !keyPressed_defaultGS) // reset defaultGS held flag
+	{
+		keyHeld_defaultGS = false;
+	}
+	// pixel shader
+	static bool keyHeld_defaultPS = false;
+	bool keyPressed_defaultPS = GetAsyncKeyState('3');
+	if (!keyHeld_defaultPS && keyPressed_defaultPS) // toggle defaultPS
+	{
+		keyHeld_defaultPS = true;
+		g_defaultPS = !g_defaultPS;
+	}
+	if (keyHeld_defaultPS && !keyPressed_defaultPS) // reset defaultPS held flag
+	{
+		keyHeld_defaultPS = false;
+	}
 	// ----- HANDLE TOGGLES -----
 
 	// ----- UPDATE CAMERA -----
 	// -- POSITION --
 	FLOAT x, y, z;
 	x = y = z = 0.0f;
-	if (GetAsyncKeyState('A')) // move left
-	{
-		x -= g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState('D')) // move right
-	{
-		x += g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState(VK_LSHIFT)) // move down
-	{
-		y -= g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState(VK_SPACE)) // move up
-	{
-		y += g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState('S')) // move backward
-	{
-		z -= g_camMoveSpeed * dt;
-	}
-	if (GetAsyncKeyState('W')) // move forward
-	{
-		z += g_camMoveSpeed * dt;
-	}
+	if (GetAsyncKeyState('A')) x -= g_camMoveSpeed * dt; // move left
+	if (GetAsyncKeyState('D')) x += g_camMoveSpeed * dt; // move right
+	if (GetAsyncKeyState(VK_LSHIFT)) y -= g_camMoveSpeed * dt; // move down
+	if (GetAsyncKeyState(VK_SPACE)) y += g_camMoveSpeed * dt; // move up
+	if (GetAsyncKeyState('S')) z -= g_camMoveSpeed * dt; // move backward
+	if (GetAsyncKeyState('W')) z += g_camMoveSpeed * dt; // move forward
 	// apply offset
 	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
 	// -- POSITION --
 	// -- ROTATION --
 	FLOAT xr, yr;
 	xr = yr = 0.0f;
-	if (GetAsyncKeyState(VK_UP)) // rotate upward
-	{
-		xr -= DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_DOWN)) // rotate downward
-	{
-		xr += DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_LEFT)) // rotate left
-	{
-		yr -= DEGTORAD(g_camRotSpeed) * dt;
-	}
-	if (GetAsyncKeyState(VK_RIGHT)) // rotate right
-	{
-		yr += DEGTORAD(g_camRotSpeed) * dt;
-	}
+	if (GetAsyncKeyState(VK_UP)) xr -= DEGTORAD(g_camRotSpeed) * dt; // rotate upward
+	if (GetAsyncKeyState(VK_DOWN)) xr += DEGTORAD(g_camRotSpeed) * dt; // rotate downward
+	if (GetAsyncKeyState(VK_LEFT)) yr -= DEGTORAD(g_camRotSpeed) * dt; // rotate left
+	if (GetAsyncKeyState(VK_RIGHT)) yr += DEGTORAD(g_camRotSpeed) * dt; // rotate right
 	// apply rotation
 	XMVECTOR camPos = view.r[3];
 	view = view * XMMatrixTranslationFromVector(-1 * camPos);
@@ -1172,22 +1164,12 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	if (g_defaultVS) // use default shader
-	{
-		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	}
-	else // use fancy shader
-	{
-		g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);
-	}
-	if (g_defaultPS) // use default shader
-	{
-		g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
-	}
-	else // use fancy shader
-	{
-		g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);
-	}
+	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0); // use default shader
+	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0); // use fancy shader
+	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0); // use default shader
+	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0); // use fancy shader
+	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0); // use default shader
+	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0); // use fancy shader
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestHeaderMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
@@ -1201,6 +1183,8 @@ void Render()
 	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
 	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	// set PS resources
@@ -1289,13 +1273,15 @@ void Render()
 void Cleanup()
 {
 	// --- SHADERS ---
-	if (g_p_PS_Distort) g_p_PS_Distort->Release();
 	if (g_p_PS_SolidColorLights) g_p_PS_SolidColorLights->Release();
 	if (g_p_PS_SolidColor) g_p_PS_SolidColor->Release();
 	if (g_p_PS_InputColorLights) g_p_PS_InputColorLights->Release();
 	if (g_p_PS_InputColor) g_p_PS_InputColor->Release();
+	if (g_p_PS_Distort) g_p_PS_Distort->Release();
 	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
 	if (g_p_PS) g_p_PS->Release();
+	if (g_p_GS) g_p_GS->Release();
+	if (g_p_VS_Distort) g_p_VS_Distort->Release();
 	if (g_p_VS) g_p_VS->Release();
 	// --- SAMPLER STATES ---
 	if (g_p_samplerLinear) g_p_samplerLinear->Release();
