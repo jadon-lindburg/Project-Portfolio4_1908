@@ -559,25 +559,25 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// --- LOAD VERTEX / INDEX DATA ---
 	S_VERTEX* p_verts_TestLoadMesh = nullptr;
 	UINT* p_inds_TestLoadMesh = nullptr;
-	ProcessOBJData("Assets/test pyramid.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
+	//ProcessOBJData("Assets/test pyramid.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_verts_TestLoadMesh;
+	//bufferDesc = {};
+	//bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
+	//bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	//bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	//bufferDesc.CPUAccessFlags = 0;
+	//subData = {};
+	//subData.pSysMem = p_verts_TestLoadMesh;
 	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_inds_TestLoadMesh;
+	//bufferDesc = {};
+	//bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
+	//bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	//bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	//bufferDesc.CPUAccessFlags = 0;
+	//subData = {};
+	//subData.pSysMem = p_inds_TestLoadMesh;
 	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
