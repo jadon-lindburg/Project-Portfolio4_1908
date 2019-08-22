@@ -559,26 +559,26 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// --- LOAD VERTEX / INDEX DATA ---
 	S_VERTEX* p_verts_TestLoadMesh = nullptr;
 	UINT* p_inds_TestLoadMesh = nullptr;
-	//ProcessOBJData("Assets/test pyramid.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
+	ProcessOBJData("Assets/heavenTorch.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
-	//bufferDesc = {};
-	//bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
-	//bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	//bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	//bufferDesc.CPUAccessFlags = 0;
-	//subData = {};
-	//subData.pSysMem = p_verts_TestLoadMesh;
-	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = p_verts_TestLoadMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
 	// --- CREATE VERTEX BUFFER ---
 	// --- CREATE INDEX BUFFER ---
-	//bufferDesc = {};
-	//bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
-	//bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	//bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	//bufferDesc.CPUAccessFlags = 0;
-	//subData = {};
-	//subData.pSysMem = p_inds_TestLoadMesh;
-	//hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
+	bufferDesc = {};
+	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	subData = {};
+	subData.pSysMem = p_inds_TestLoadMesh;
+	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
 	// --- CREATE INDEX BUFFER ---
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
@@ -644,17 +644,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	// ATTACH D3D TO WINDOW
 	// --------------------------------------------------
-
-	//_RPTN(0, "FLOAT			: %d\n", sizeof(FLOAT));
-	//_RPTN(0, "XMFLOAT4		: %d\n", sizeof(XMFLOAT4));
-	//_RPTN(0, "XMVECTOR		: %d\n", sizeof(XMVECTOR));
-	//_RPTN(0, "XMFLOAT4X4		: %d\n", sizeof(XMFLOAT4X4));
-	//_RPTN(0, "XMMATRIX		: %d\n", sizeof(XMMATRIX));
-	//_RPTN(0, "S_LIGHT_DIR		: %d\n", sizeof(S_LIGHT_DIR));
-	//_RPTN(0, "S_LIGHT_PNT		: %d\n", sizeof(S_LIGHT_PNT));
-	//_RPTN(0, "S_LIGHT_SPT		: %d\n", sizeof(S_LIGHT_SPT));
-	//_RPTN(0, "S_CBUFFER_VS	: %d\n", sizeof(S_CBUFFER_VS));
-	//_RPTN(0, "S_CBUFFER_PS	: %d\n", sizeof(S_CBUFFER_PS));
 
 	return TRUE;
 }
@@ -747,10 +736,6 @@ void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_vert
 		p_verts[i].tex.z = _p_data[i].uvw[2];
 		// set color
 		p_verts[i].color = XMFLOAT4(1, 1, 1, 1);
-		//_RPTN(0, "POS : %f, %f, %f, %f\n", p_verts[i].pos.x, p_verts[i].pos.y, p_verts[i].pos.z, p_verts[i].pos.w);
-		//_RPTN(0, "NORM : %f, %f, %f\n", p_verts[i].norm.x, p_verts[i].norm.y, p_verts[i].norm.z);
-		//_RPTN(0, "TEX : %f, %f, %f\n", p_verts[i].tex.x, p_verts[i].tex.y, p_verts[i].tex.z);
-		//_RPTN(0, "COLOR : %f, %f, %f, %f\n\n", p_verts[i].color.x, p_verts[i].color.y, p_verts[i].color.z, p_verts[i].color.w);
 	}
 	*_pp_verts = p_verts;
 }
@@ -787,12 +772,6 @@ void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
 			p_verts[index].color.y = (rand() % 1000) / 1000.0f;
 			p_verts[index].color.z = (rand() % 1000) / 1000.0f;
 			p_verts[index].color.w = 1;
-
-			//_RPTN(0, "POS : %f, %f, %f, %f\n", p_verts[index].pos.x, p_verts[index].pos.y, p_verts[index].pos.z, p_verts[index].pos.w);
-			//_RPTN(0, "NORM : %f, %f, %f\n", p_verts[index].norm.x, p_verts[index].norm.y, p_verts[index].norm.z);
-			//_RPTN(0, "TEX : %f, %f, %f\n", p_verts[index].tex.x, p_verts[index].tex.y, p_verts[index].tex.z);
-			//_RPTN(0, "COLOR : %f, %f, %f, %f\n", p_verts[index].color.x, p_verts[index].color.y, p_verts[index].color.z, p_verts[index].color.w);
-			//_RPTN(0, "\n", NULL);
 		}
 	*_pp_verts = p_verts;
 	// set indices
@@ -1006,22 +985,22 @@ void Render()
 	// -- POSITION --
 	FLOAT x, y, z;
 	x = y = z = 0.0f;
-	if (GetAsyncKeyState('A')) x -= g_camMoveSpeed * dt; // move left
-	if (GetAsyncKeyState('D')) x += g_camMoveSpeed * dt; // move right
-	if (GetAsyncKeyState(VK_LSHIFT)) y -= g_camMoveSpeed * dt; // move down
-	if (GetAsyncKeyState(VK_SPACE)) y += g_camMoveSpeed * dt; // move up
-	if (GetAsyncKeyState('S')) z -= g_camMoveSpeed * dt; // move backward
-	if (GetAsyncKeyState('W')) z += g_camMoveSpeed * dt; // move forward
+	if (GetAsyncKeyState('A'))			x -= g_camMoveSpeed * dt; // move left
+	if (GetAsyncKeyState('D'))			x += g_camMoveSpeed * dt; // move right
+	if (GetAsyncKeyState(VK_LSHIFT))	y -= g_camMoveSpeed * dt; // move down
+	if (GetAsyncKeyState(VK_SPACE))		y += g_camMoveSpeed * dt; // move up
+	if (GetAsyncKeyState('S'))			z -= g_camMoveSpeed * dt; // move backward
+	if (GetAsyncKeyState('W'))			z += g_camMoveSpeed * dt; // move forward
 	// apply offset
 	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
 	// -- POSITION --
 	// -- ROTATION --
 	FLOAT xr, yr;
 	xr = yr = 0.0f;
-	if (GetAsyncKeyState(VK_UP)) xr -= DEGTORAD(g_camRotSpeed) * dt; // rotate upward
-	if (GetAsyncKeyState(VK_DOWN)) xr += DEGTORAD(g_camRotSpeed) * dt; // rotate downward
-	if (GetAsyncKeyState(VK_LEFT)) yr -= DEGTORAD(g_camRotSpeed) * dt; // rotate left
-	if (GetAsyncKeyState(VK_RIGHT)) yr += DEGTORAD(g_camRotSpeed) * dt; // rotate right
+	if (GetAsyncKeyState(VK_UP))	xr -= DEGTORAD(g_camRotSpeed) * dt; // rotate upward
+	if (GetAsyncKeyState(VK_DOWN))	xr += DEGTORAD(g_camRotSpeed) * dt; // rotate downward
+	if (GetAsyncKeyState(VK_LEFT))	yr -= DEGTORAD(g_camRotSpeed) * dt; // rotate left
+	if (GetAsyncKeyState(VK_RIGHT))	yr += DEGTORAD(g_camRotSpeed) * dt; // rotate right
 	// apply rotation
 	XMVECTOR camPos = view.r[3];
 	view = view * XMMatrixTranslationFromVector(-1 * camPos);
@@ -1133,12 +1112,12 @@ void Render()
 	// set VS constant buffer values
 	cBufferVS.wrld = wrld_TestHardMesh;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
-	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
 	// set PS constant buffer values
-	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
@@ -1164,12 +1143,12 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0); // use default shader
-	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0); // use fancy shader
-	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0); // use default shader
-	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0); // use fancy shader
-	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0); // use default shader
-	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0); // use fancy shader
+	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);	// use default shader
+	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);		// use fancy shader
+	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);	// use default shader
+	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0);		// use fancy shader
+	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);	// use default shader
+	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);		// use fancy shader
 	// draw
 	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestHeaderMesh, 3, 0, 0, 0);
 	// ----- TEST OBJ2HEADER MESH -----
@@ -1180,19 +1159,40 @@ void Render()
 	// set VS constant buffer values
 	cBufferVS.wrld = wrld_TestProcMesh;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
-	// set VS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
 	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
 	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
-	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_TestProcMesh, 0, 0);
 	// ----- TEST PROCEDURAL MESH -----
+	// ----- TEST LOAD MESH -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_TestLoadMesh, 0, 0);
+	// ----- TEST LOAD MESH -----
 	// ----- VISUAL LIGHTS -----
 	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
@@ -1280,6 +1280,7 @@ void Cleanup()
 	if (g_p_PS_Distort) g_p_PS_Distort->Release();
 	if (g_p_PS_CubeMap) g_p_PS_CubeMap->Release();
 	if (g_p_PS) g_p_PS->Release();
+	if (g_p_GS_Distort) g_p_GS_Distort->Release();
 	if (g_p_GS) g_p_GS->Release();
 	if (g_p_VS_Distort) g_p_VS_Distort->Release();
 	if (g_p_VS) g_p_VS->Release();
