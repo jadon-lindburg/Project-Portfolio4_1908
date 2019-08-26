@@ -117,13 +117,17 @@ ID3D11DeviceContext*		g_p_deviceContext = nullptr;				//released
 // --- DEVICE / SWAP CHAIN ---
 // --- RENDER TARGET VIEWS ---
 ID3D11RenderTargetView*		g_p_renderTargetView = nullptr;				//released
+ID3D11RenderTargetView*		g_p_renderTargetView_RTT = nullptr;			//released
 // --- RENDER TARGET VIEWS ---
 // --- DEPTH STENCILS ---
 ID3D11Texture2D*			g_p_depthStencil = nullptr;					//released
 ID3D11DepthStencilView*		g_p_depthStencilView = nullptr;				//released
+ID3D11Texture2D*			g_p_depthStencil_RTT = nullptr;				//released
+ID3D11DepthStencilView*		g_p_depthStencilView_RTT = nullptr;			//released
 // --- DEPTH STENCILS ---
 // --- VIEWPORTS ---
-D3D11_VIEWPORT				g_viewport;
+D3D11_VIEWPORT				g_viewport0;
+D3D11_VIEWPORT				g_viewport1;
 // --- VIEWPORTS ---
 // --- INPUT LAYOUT ---
 ID3D11InputLayout*			g_p_vertexLayout = nullptr;					//released
@@ -156,9 +160,12 @@ UINT						g_numInds_TestLoadMesh = 0;
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
-// --- SHADER RESOURCE VIEWS ---
-ID3D11ShaderResourceView*	g_p_texRV_TestHeaderMesh = nullptr;			//released
-// --- SHADER RESOURCE VIEWS ---
+// --- TEXTURES / SHADER RESOURCE VIEWS ---
+ID3D11ShaderResourceView*	g_p_SRV_TestHeaderMesh = nullptr;			//released
+ID3D11ShaderResourceView*	g_p_SRV_Skybox = nullptr;					//released
+ID3D11Texture2D*			g_p_tex_RTT = nullptr;						//released
+ID3D11ShaderResourceView*	g_p_SRV_RTT = nullptr;						//released
+// --- TEXTURES / SHADER RESOURCE VIEWS ---
 // --- SAMPLER STATES ---
 ID3D11SamplerState*			g_p_samplerLinear = nullptr;				//released
 // --- SAMPLER STATES ---
@@ -223,6 +230,11 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX**);
 void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX**, UINT&, UINT**, UINT&);
 void				ProcessOBJData(const char*, S_VERTEX**, UINT&, UINT**, UINT&);
+HRESULT				InitDepthStencilView(UINT, UINT, ID3D11Texture2D**, ID3D11DepthStencilView**);
+HRESULT				InitVertexBuffer(UINT, ID3D11Buffer**);
+HRESULT				InitIndexBuffer(UINT, ID3D11Buffer**);
+HRESULT				InitConstantBuffer(UINT, ID3D11Buffer**);
+HRESULT				InitSamplerState(ID3D11SamplerState**);
 void				Render();
 void				Cleanup();
 
@@ -358,59 +370,46 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ---------- D3D DEVICE AND SWAP CHAIN ----------
 
 	// ---------- RENDER TARGET VIEWS ----------
-	ID3D11Resource* backBuffer = nullptr;
+	ID3D11Resource* p_backBuffer = nullptr;
 	// get buffer from swap chain
-	hr = g_p_swapChain->GetBuffer(0, __uuidof(backBuffer), (void**)&backBuffer);
+	hr = g_p_swapChain->GetBuffer(0, __uuidof(p_backBuffer), (void**)&p_backBuffer);
 	// use buffer to create render target view
-	hr = g_p_device->CreateRenderTargetView(backBuffer, nullptr,
-		&g_p_renderTargetView);
-	backBuffer->Release();
+	hr = g_p_device->CreateRenderTargetView(p_backBuffer, nullptr, &g_p_renderTargetView);
+	hr = g_p_device->CreateRenderTargetView(nullptr, nullptr, nullptr);
+	// release buffer
+	p_backBuffer->Release();
 	// ---------- RENDER TARGET VIEWS ----------
 
 	// ---------- DEPTH STENCILS ----------
-	// create depth stencil texture
-	D3D11_TEXTURE2D_DESC depthStencilDesc = {};
-	depthStencilDesc.Width = windowWidth;
-	depthStencilDesc.Height = windowHeight;
-	depthStencilDesc.MipLevels = 1;
-	depthStencilDesc.ArraySize = 1;
-	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	depthStencilDesc.SampleDesc.Count = 1;
-	depthStencilDesc.SampleDesc.Quality = 0;
-	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
-	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
-	depthStencilDesc.CPUAccessFlags = 0;
-	depthStencilDesc.MiscFlags = 0;
-	hr = g_p_device->CreateTexture2D(&depthStencilDesc, nullptr, &g_p_depthStencil);
-
-	// create depth stencil view
-	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
-	depthStencilViewDesc.Format = depthStencilDesc.Format;
-	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-	depthStencilViewDesc.Texture2D.MipSlice = 0;
-	hr = g_p_device->CreateDepthStencilView(g_p_depthStencil, &depthStencilViewDesc, &g_p_depthStencilView);
+	hr = InitDepthStencilView(windowWidth, windowHeight, &g_p_depthStencil, &g_p_depthStencilView);
 	// ---------- DEPTH STENCILS ----------
 
 	// ---------- VIEWPORTS ----------
 	// setup main viewport
-	g_viewport.Width = (FLOAT)windowWidth;
-	g_viewport.Height = (FLOAT)windowHeight;
-	g_viewport.TopLeftX = 0;
-	g_viewport.TopLeftX = 0;
-	g_viewport.MinDepth = 0.0f; // exponential depth; near/far planes are handled in projection matrix
-	g_viewport.MaxDepth = 1.0f;
+	g_viewport0.Width = (FLOAT)windowWidth;
+	g_viewport0.Height = (FLOAT)windowHeight;
+	g_viewport0.TopLeftX = 0;
+	g_viewport0.TopLeftX = 0;
+	g_viewport0.MinDepth = 0.0f; // exponential depth; near/far planes are handled in projection matrix
+	g_viewport0.MaxDepth = 1.0f;
+
+	// setup minimap viewport
+	g_viewport1.Width = (FLOAT)windowWidth / 4.0f;
+	g_viewport1.Height = (FLOAT)windowHeight / 4.0f;
+	g_viewport1.TopLeftX = 0;
+	g_viewport1.TopLeftX = 0;
+	g_viewport1.MinDepth = 0.0f; // exponential depth; near/far planes are handled in projection matrix
+	g_viewport1.MaxDepth = 1.0f;
 	// ---------- VIEWPORTS ----------
 
 	// ---------- SHADERS ----------
-	// ----- VERTEX SHADERS -----
+	// vertex
 	hr = g_p_device->CreateVertexShader(VS_Distort, sizeof(VS_Distort), nullptr, &g_p_VS_Distort);
 	hr = g_p_device->CreateVertexShader(VS, sizeof(VS), nullptr, &g_p_VS);
-	// ----- VERTEX SHADERS -----
-	// ----- GEOMETRY SHADERS -----
+	// geometry
 	hr = g_p_device->CreateGeometryShader(GS, sizeof(GS), nullptr, &g_p_GS);
 	hr = g_p_device->CreateGeometryShader(GS_Distort, sizeof(GS_Distort), nullptr, &g_p_GS_Distort);
-	// ----- GEOMETRY SHADERS -----
-	// ----- PIXEL SHADERS -----
+	// pixel
 	hr = g_p_device->CreatePixelShader(PS, sizeof(PS), nullptr, &g_p_PS);
 	hr = g_p_device->CreatePixelShader(PS_CubeMap, sizeof(PS_CubeMap), nullptr, &g_p_PS_CubeMap);
 	hr = g_p_device->CreatePixelShader(PS_Distort, sizeof(PS_Distort), nullptr, &g_p_PS_Distort);
@@ -418,7 +417,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_device->CreatePixelShader(PS_InputColorLights, sizeof(PS_InputColorLights), nullptr, &g_p_PS_InputColorLights);
 	hr = g_p_device->CreatePixelShader(PS_SolidColor, sizeof(PS_SolidColor), nullptr, &g_p_PS_SolidColor);
 	hr = g_p_device->CreatePixelShader(PS_SolidColorLights, sizeof(PS_SolidColorLights), nullptr, &g_p_PS_SolidColorLights);
-	// ----- PIXEL SHADERS -----
 	// ---------- SHADERS ----------
 
 	// ---------- INPUT LAYOUT ----------
@@ -439,18 +437,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	// ---------- MESHES ----------
 	// ----- TEST HARDCODED MESH -----
-	// --- VERTEX BUFFER DATA ---
+	// declare vertex / index data
 	S_VERTEX verts_TestHardMesh[] =
 	{
 		// pos, norm, tex, color
-		{ { 0, -0.5f, -0.5f, 1 }, { 0, -0.5f, -0.5f }, { 0, 0, 0 }, { 0, 0, 1, 1} }, // bottom front
-		{ { 0.5f, -0.5f, 0.5f, 1 }, { 0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 0, 1, 0, 1} }, // bottom back right
-		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 1, 0, 0, 1} }, // bottom back left
-		{ { 0, 0.5f, 0, 1 }, { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 1, 1} } // top
+		{ { 0, -0.5f, -0.5f, 1 }, { 0, -0.5f, -0.5f }, { 0, 0, 0 }, { 0, 0, 1, 1} },			// bottom front
+		{ { 0.5f, -0.5f, 0.5f, 1 }, { 0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 0, 1, 0, 1} },		// bottom back right
+		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 1, 0, 0, 1} },	// bottom back left
+		{ { 0, 0.5f, 0, 1 }, { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 1, 1} }							// top
 	};
 	g_numVerts_TestHardMesh = ARRAYSIZE(verts_TestHardMesh);
-	// --- VERTEX BUFFER DATA ---
-	// --- INDEX BUFFER DATA ---
 	int inds_TestHardMesh[] =
 	{
 		0, 1, 2, // bottom
@@ -459,61 +455,27 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		3, 2, 1	 // back
 	};
 	g_numInds_TestHardMesh = ARRAYSIZE(inds_TestHardMesh);
-	// --- INDEX BUFFER DATA ---
-	// --- CREATE VERTEX BUFFER ---
-	D3D11_BUFFER_DESC bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestHardMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	D3D11_SUBRESOURCE_DATA subData = {};
-	subData.pSysMem = verts_TestHardMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestHardMesh);
-	// --- CREATE VERTEX BUFFER ---
-	// --- CREATE INDEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestHardMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = inds_TestHardMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHardMesh);
-	// --- CREATE INDEX BUFFER ---
+	// create vertex / index buffers
+	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestHardMesh, (S_VERTEX**)&verts_TestHardMesh,
+		&g_p_vBuffer_TestHardMesh);
+	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestHardMesh, (UINT**)&inds_TestHardMesh, &g_p_iBuffer_TestHardMesh);
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
 	// ----- TEST HARDCODED MESH -----
 
 	// ----- TEST OBJ2HEADER MESH -----
-	// --- CONVERT VERTEX DATA ---
-	// get number of verts
+	// get number of verts / inds
 	g_numVerts_TestHeaderMesh = ARRAYSIZE(heavenTorch_data);
-	// store verts
-	S_VERTEX* p_verts_TestHeaderMesh = nullptr;
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh);
-	// --- CONVERT VERTEX DATA ---
-	// get number of inds
 	g_numInds_TestHeaderMesh = ARRAYSIZE(heavenTorch_indicies);
-	// --- CREATE VERTEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestHeaderMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_verts_TestHeaderMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestHeaderMesh);
-	// --- CREATE VERTEX BUFFER ---
-	// --- CREATE INDEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestHeaderMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = heavenTorch_indicies;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestHeaderMesh);
-	// --- CREATE INDEX BUFFER ---
+	// store verts / inds
+	S_VERTEX* p_verts_TestHeaderMesh = nullptr;
+	UINT* p_inds_TestHeaderMesh = nullptr;
+	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh);
+	for (UINT i = 0; i < g_numInds_TestHeaderMesh; i++)
+		p_inds_TestHeaderMesh[i] = heavenTorch_indicies[i];
+	// create vertex / index buffers
+	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh, &g_p_vBuffer_TestHeaderMesh);
+	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestHeaderMesh, &p_inds_TestHeaderMesh, &g_p_iBuffer_TestHeaderMesh);
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, XMMatrixIdentity());
 	// clear temp memory
@@ -521,33 +483,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ----- TEST OBJ2HEADER MESH -----
 
 	// ----- TEST PROCEDURAL MESH -----
-	// --- GENERATE VERTEX / INDEX DATA ---
+	// generate vertex / index data
 	S_VERTEX gridOrigin = { { 0, 0, 0, 1 }, { 0, 1, 0 }, { 0, 0, 0 }, {} };
 	S_VERTEX* p_verts_TestProcMesh = nullptr;
 	UINT* p_inds_TestProcMesh = nullptr;
 	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, g_scale_TestProcMesh,
 		&p_verts_TestProcMesh, g_numVerts_TestProcMesh, &p_inds_TestProcMesh, g_numInds_TestProcMesh);
-	// --- GENERATE VERTEX / INDEX DATA ---
-	// --- CREATE VERTEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestProcMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_verts_TestProcMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestProcMesh);
-	// --- CREATE VERTEX BUFFER ---
-	// --- CREATE INDEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestProcMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_inds_TestProcMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestProcMesh);
-	// --- CREATE INDEX BUFFER ---
+	// create vertex / index buffers
+	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestProcMesh, &p_verts_TestProcMesh, &g_p_vBuffer_TestProcMesh);
+	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestProcMesh, &p_inds_TestProcMesh, &g_p_iBuffer_TestProcMesh);
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestProcMesh, XMMatrixIdentity());
 	// clear temp memory
@@ -556,30 +500,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ----- TEST PROCEDURAL MESH -----
 
 	// ----- TEST LOAD MESH -----
-	// --- LOAD VERTEX / INDEX DATA ---
+	// load vertex / index data
 	S_VERTEX* p_verts_TestLoadMesh = nullptr;
 	UINT* p_inds_TestLoadMesh = nullptr;
 	ProcessOBJData("Assets/heavenTorch.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
-	// --- CREATE VERTEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_VERTEX) * g_numVerts_TestLoadMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_verts_TestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_vBuffer_TestLoadMesh);
-	// --- CREATE VERTEX BUFFER ---
-	// --- CREATE INDEX BUFFER ---
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(int) * g_numInds_TestLoadMesh;
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	subData = {};
-	subData.pSysMem = p_inds_TestLoadMesh;
-	hr = g_p_device->CreateBuffer(&bufferDesc, &subData, &g_p_iBuffer_TestLoadMesh);
-	// --- CREATE INDEX BUFFER ---
+	// create vertex / index buffers
+	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestLoadMesh, &p_verts_TestLoadMesh, &g_p_vBuffer_TestLoadMesh);
+	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestLoadMesh, &p_inds_TestLoadMesh, &g_p_iBuffer_TestLoadMesh);
 	// set initial world matrix
 	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
 	// clear temp memory
@@ -592,37 +519,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	g_p_deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// ---------- CONSTANT BUFFERS ----------
-	// create VS constant buffer
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_CBUFFER_VS);
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferVS);
-	// create PS constant buffer
-	bufferDesc = {};
-	bufferDesc.ByteWidth = sizeof(S_CBUFFER_PS);
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-	hr = g_p_device->CreateBuffer(&bufferDesc, nullptr, &g_p_cBufferPS);
+	hr = InitConstantBuffer(sizeof(S_CBUFFER_VS), &g_p_cBufferVS);
+	hr = InitConstantBuffer(sizeof(S_CBUFFER_PS), &g_p_cBufferPS);
 	// ---------- CONSTANT BUFFERS ----------
 
 	// ---------- SHADER RESOURCE VIEWS ----------
-	// test Obj2Header mesh
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_texRV_TestHeaderMesh);
+	// Brazier01
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_SRV_TestHeaderMesh);
 	// ---------- SHADER RESOURCE VIEWS ----------
 
 	// ---------- SAMPLER STATES ----------
-	D3D11_SAMPLER_DESC samplerDesc = {};
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	samplerDesc.MinLOD = 0;
-	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = g_p_device->CreateSamplerState(&samplerDesc, &g_p_samplerLinear);
+	hr = InitSamplerState(&g_p_samplerLinear);
 	// ---------- SAMPLER STATES ----------
 
 	// ---------- MATRICES ----------
@@ -828,6 +735,82 @@ void ProcessOBJData(const char* _filepath, S_VERTEX** _pp_verts, UINT& _numVerts
 		inds[i] = data.indices[i];
 	}
 	*_pp_inds = inds;
+}
+
+HRESULT InitDepthStencilView(UINT _width, UINT _height, ID3D11Texture2D** _pp_depthStencil,
+	ID3D11DepthStencilView** _pp_depthStencilView)
+{
+	HRESULT hr;
+	// create depth stencil texture
+	D3D11_TEXTURE2D_DESC depthStencilDesc = {};
+	depthStencilDesc.Width = _width;
+	depthStencilDesc.Height = _height;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.ArraySize = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilDesc.SampleDesc.Count = 1;
+	depthStencilDesc.SampleDesc.Quality = 0;
+	depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+	depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	depthStencilDesc.CPUAccessFlags = 0;
+	depthStencilDesc.MiscFlags = 0;
+	hr = g_p_device->CreateTexture2D(&depthStencilDesc, nullptr, _pp_depthStencil);
+	if (FAILED(hr))
+		return hr;
+
+	// create depth stencil view
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+	depthStencilViewDesc.Format = depthStencilDesc.Format;
+	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.Texture2D.MipSlice = 0;
+	return g_p_device->CreateDepthStencilView(*_pp_depthStencil, &depthStencilViewDesc, _pp_depthStencilView);
+}
+
+HRESULT InitVertexBuffer(UINT _byteWidth, S_VERTEX** _pp_verts, ID3D11Buffer** _pp_vBuffer)
+{
+	D3D11_BUFFER_DESC bufferDesc = {};
+	bufferDesc.ByteWidth = _byteWidth;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	D3D11_SUBRESOURCE_DATA subData = {};
+	subData.pSysMem = *_pp_verts;
+	return g_p_device->CreateBuffer(&bufferDesc, &subData, _pp_vBuffer);
+}
+
+HRESULT InitIndexBuffer(UINT _byteWidth, UINT** _pp_inds, ID3D11Buffer** _pp_iBuffer)
+{
+	D3D11_BUFFER_DESC bufferDesc = {};
+	bufferDesc.ByteWidth = _byteWidth;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	D3D11_SUBRESOURCE_DATA subData = {};
+	subData.pSysMem = *_pp_inds;
+	return g_p_device->CreateBuffer(&bufferDesc, &subData, _pp_iBuffer);
+}
+
+HRESULT InitConstantBuffer(UINT _bufferSize, ID3D11Buffer** _pp_cBuffer)
+{
+	D3D11_BUFFER_DESC bufferDesc = {};
+	bufferDesc.ByteWidth = _bufferSize;
+	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc.CPUAccessFlags = 0;
+	return g_p_device->CreateBuffer(&bufferDesc, nullptr, _pp_cBuffer);
+}
+
+HRESULT InitSamplerState(ID3D11SamplerState** _pp_samplerState)
+{
+	D3D11_SAMPLER_DESC samplerDesc = {};
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	return g_p_device->CreateSamplerState(&samplerDesc, _pp_samplerState);
 }
 
 void Render()
@@ -1069,7 +1052,7 @@ void Render()
 	// clear depth stencil view to 1.0 (max depth)
 	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// set viewport
-	g_p_deviceContext->RSSetViewports(1, &g_viewport);
+	g_p_deviceContext->RSSetViewports(1, &g_viewport0);
 	// set render target view
 	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
 	// set shader constant buffers
@@ -1141,7 +1124,7 @@ void Render()
 	// set PS constant buffer values
 	// set PS resources
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
 	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);	// use default shader
 	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);		// use fancy shader
@@ -1188,7 +1171,7 @@ void Render()
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	// set PS resources
-	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_texRV_TestHeaderMesh);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_TestLoadMesh, 0, 0);
@@ -1287,7 +1270,10 @@ void Cleanup()
 	// --- SAMPLER STATES ---
 	if (g_p_samplerLinear) g_p_samplerLinear->Release();
 	// --- SHADER RESOURCE VIEWS ---
-	if (g_p_texRV_TestHeaderMesh) g_p_texRV_TestHeaderMesh->Release();
+	if (g_p_SRV_Skybox) g_p_SRV_Skybox->Release();
+	if (g_p_SRV_RTT) g_p_SRV_RTT->Release();
+	if (g_p_tex_RTT) g_p_tex_RTT->Release();
+	if (g_p_SRV_TestHeaderMesh) g_p_SRV_TestHeaderMesh->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
@@ -1307,9 +1293,12 @@ void Cleanup()
 	// --- VERTEX LAYOUT ---
 	if (g_p_vertexLayout) g_p_vertexLayout->Release();
 	// --- DEPTH STENCILS ---
-	if (g_p_depthStencil) g_p_depthStencil->Release();
+	if (g_p_depthStencilView_RTT) g_p_depthStencilView_RTT->Release();
+	if (g_p_depthStencil_RTT) g_p_depthStencil_RTT->Release();
 	if (g_p_depthStencilView) g_p_depthStencilView->Release();
+	if (g_p_depthStencil) g_p_depthStencil->Release();
 	// --- RENDER TARGET VIEWS ---
+	if (g_p_renderTargetView_RTT) g_p_renderTargetView_RTT->Release();
 	if (g_p_renderTargetView) g_p_renderTargetView->Release();
 	// --- DEVICE / SWAP CHAIN ---
 	if (g_p_deviceContext) g_p_deviceContext->Release();
