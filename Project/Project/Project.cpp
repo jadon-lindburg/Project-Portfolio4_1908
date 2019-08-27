@@ -615,7 +615,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
 
 	// view
-	XMVECTOR eye = XMVectorSet(0, 6, -10, 0);
+	XMVECTOR eye = XMVectorSet(0, 10, -15, 0);
 	XMVECTOR at = XMVectorSet(0, 2, 0, 0);
 	XMVECTOR up = XMVectorSet(0, 1, 0, 0);
 	XMMATRIX view = XMMatrixLookAtLH(eye, at, up);
@@ -919,6 +919,12 @@ void Render()
 	XMMATRIX wrld_Cube = XMLoadFloat4x4(&g_wrld_Cube);
 	XMMATRIX wrld_GroundPlane = XMLoadFloat4x4(&g_wrld_GroundPlane);
 	XMMATRIX wrld_Brazier01 = XMLoadFloat4x4(&g_wrld_Brazier01);
+	XMMATRIX wrld_Spaceship = XMLoadFloat4x4(&g_wrld_Spaceship);
+	XMMATRIX wrld_Sun = XMLoadFloat4x4(&g_wrld_Sun);
+	XMMATRIX wrld_Earth = XMLoadFloat4x4(&g_wrld_Earth);
+	XMMATRIX wrld_Moon = XMLoadFloat4x4(&g_wrld_Moon);
+	XMMATRIX wrld_Mars = XMLoadFloat4x4(&g_wrld_Mars);
+	XMMATRIX wrld_Jupiter = XMLoadFloat4x4(&g_wrld_Jupiter);
 	// ----- RETRIEVE MATRICES -----
 
 	// ----- LIGHTS -----
@@ -936,7 +942,7 @@ void Render()
 	S_LIGHT_PNT pLights[MAX_LIGHTS_PNT] =
 	{
 		// pos, range, atten, color
-		{ { 1, 0.5, 0, 1 }, 10, { 0, 0, 0.5f}, { 0, 1, 0, 1 } },
+		{ { 1.5f, 0.5, 0, 1 }, 10, { 0, 0, 0.5f}, { 0, 1, 0, 1 } },
 		{},
 		{}
 	};
@@ -946,13 +952,57 @@ void Render()
 
 	// ----- UPDATE WORLD POSITIONS -----
 	// --- CUBE ---
-	// orbit mesh around origin
+	// orbit about origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_Cube = XMMatrixTranslation(2.5f, 2, 0) * rotate;
+	wrld_Cube = XMMatrixTranslation(2.5f, 6, 0) * rotate;
 	// --- CUBE ---
 	// --- GROUND PLANE ---
 	wrld_GroundPlane = XMMatrixTranslation(0, -1, 0);
 	// --- GROUND PLANE ---
+	// --- SPACESHIP ---
+	// orbit about origin
+	rotate = XMMatrixRotationY(-1.3f * t);
+	wrld_Spaceship = XMMatrixTranslation(5, 2, 0) * rotate;
+	// --- SPACESHIP ---
+	// --- SUN ---
+	// spin
+	scale = XMMatrixScaling(1.2f, 1.2f, 1.2f);
+	rotate = XMMatrixRotationY(0.1f * t);
+	wrld_Sun = scale * rotate * XMMatrixTranslation(0, 3, 0);
+	// --- SUN ---
+	// --- EARTH ---
+	// orbit about origin
+	scale = XMMatrixScaling(0.4f, 0.4f, 0.4f);
+	rotate = XMMatrixRotationY(0.74f * t);
+	wrld_Earth = scale * XMMatrixTranslation(3, 3, -2) * rotate;
+	// spin
+	rotate = XMMatrixRotationY(2.1f * t);
+	wrld_Earth = rotate * wrld_Earth;
+	// --- EARTH ---
+	// --- MOON ---
+	// orbit about earth
+	scale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+	rotate = XMMatrixRotationY(0.4f * t);
+	wrld_Moon = scale * XMMatrixTranslation(2, 0, 0) * rotate * wrld_Earth;
+	// --- MOON ---
+	// --- MARS ---
+	// orbit about origin
+	scale = XMMatrixScaling(0.3f, 0.3f, 0.3f);
+	rotate = XMMatrixRotationY(0.53f * t);
+	wrld_Mars = scale * XMMatrixTranslation(4, 3, 3) * rotate;
+	// spin
+	rotate = XMMatrixRotationY(1.6f * t);
+	wrld_Mars = rotate * wrld_Mars;
+	// --- MARS ---
+	// --- JUPITER ---
+	// orbit about origin
+	scale = XMMatrixScaling(0.7f, 0.7f, 0.7f);
+	rotate = XMMatrixRotationY(0.31f * t);
+	wrld_Jupiter = scale * XMMatrixTranslation(6, 3, -3) * rotate;
+	// spin
+	rotate = XMMatrixRotationY(1.2f * t);
+	wrld_Jupiter = rotate * wrld_Jupiter;
+	// --- JUPITER ---
 	// --- LIGHTS ---
 	// DLIGHT 0
 	XMMATRIX lightMatrix = XMMatrixTranslation(dLights[0].dir.x, dLights[0].dir.y, dLights[0].dir.z);
@@ -1027,7 +1077,8 @@ void Render()
 	if (GetAsyncKeyState('S'))			z -= g_camMoveSpeed * dt; // move backward
 	if (GetAsyncKeyState('W'))			z += g_camMoveSpeed * dt; // move forward
 	// apply offset
-	view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
+	//view = (XMMatrixTranslation(x, 0, z) * view) * XMMatrixTranslation(0, y, 0);
+	view = XMMatrixTranslation(x, y, z) * view;
 	// -- POSITION --
 	// -- ROTATION --
 	FLOAT xr, yr;
@@ -1132,22 +1183,16 @@ void Render()
 	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView_RTT, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// --- DRAW SKYBOX ---
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranslationFromVector(view.r[3]);
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
 	// --- DRAW SKYBOX ---
 
@@ -1156,71 +1201,139 @@ void Render()
 	// ----- RENDER PREP -----
 
 	// ----- CUBE -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_Cube;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	// ----- CUBE -----
 
 	// ----- GROUND PLANE -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_GroundPlane;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
 	// ----- GROUND PLANE -----
 
 	// ----- BRAZIER01 -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
 	// ----- BRAZIER01 -----
 
+	// ----- SPACESHIP -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Spaceship, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Spaceship, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Spaceship;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Spaceship);
+	g_p_deviceContext->DrawIndexed(g_numInds_Spaceship, 0, 0);
+	// ----- SPACESHIP -----
+
+	// ----- SUN -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Sun;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Sun);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- SUN -----
+
+	// ----- EARTH -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Earth;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Earth);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- EARTH -----
+
+	// ----- MOON -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Moon;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Moon);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MOON -----
+
+	// ----- MARS -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Mars;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Mars);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MARS -----
+
+	// ----- JUPITER -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Jupiter;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Jupiter);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- JUPITER -----
+
 	// ----- VISUAL LIGHTS -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// clear offsets
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
@@ -1236,18 +1349,13 @@ void Render()
 	distScale = 10.0f;
 	for (UINT i = 0; i < LIGHTS_DIR; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
 			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = dLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- DIRECTIONAL ---
@@ -1256,17 +1364,12 @@ void Render()
 	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
 	for (UINT i = 0; i < LIGHTS_PNT; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = pLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- POINT ---
@@ -1311,22 +1414,16 @@ void Render()
 	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// --- DRAW SKYBOX ---
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranslationFromVector(view.r[3]);
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
 	// --- DRAW SKYBOX ---
 
@@ -1335,76 +1432,143 @@ void Render()
 	// ----- RENDER PREP -----
 
 	// ----- CUBE -----
-	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_Cube;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_RTT);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	// ----- CUBE -----
 
 	// ----- GROUND PLANE -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_GroundPlane;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
 	// ----- GROUND PLANE -----
 
 	// ----- BRAZIER01 -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);	// default shader
 	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);		// fancy shader
-	// set GS resources
 	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);	// default shader
 	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0);		// fancy shader
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);	// default shader
 	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);		// fancy shader
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
 	// ----- BRAZIER01 -----
 
+	// ----- SPACESHIP -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Spaceship, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Spaceship, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Spaceship;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Spaceship);
+	g_p_deviceContext->DrawIndexed(g_numInds_Spaceship, 0, 0);
+	// ----- SPACESHIP -----
+
+	// ----- SUN -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Sun;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Sun);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- SUN -----
+
+	// ----- EARTH -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Earth;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Earth);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- EARTH -----
+
+	// ----- MOON -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Moon;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Moon);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MOON -----
+
+	// ----- MARS -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Mars;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Mars);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MARS -----
+
+	// ----- JUPITER -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Jupiter;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Jupiter);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- JUPITER -----
+
 	// ----- VISUAL LIGHTS -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// clear offsets
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
@@ -1420,18 +1584,13 @@ void Render()
 	distScale = 10.0f;
 	for (UINT i = 0; i < LIGHTS_DIR; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
 			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = dLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- DIRECTIONAL ---
@@ -1440,17 +1599,12 @@ void Render()
 	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
 	for (UINT i = 0; i < LIGHTS_PNT; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = pLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- POINT ---
@@ -1460,7 +1614,7 @@ void Render()
 	// ---------- MINIMAP RENDER PASS ----------
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
-	XMVECTOR eye = XMVectorSet(0, 7.5f, 0, 1);
+	XMVECTOR eye = XMVectorSet(0, 15, 0, 1);
 	XMVECTOR at = XMVectorSet(0, 0, 0, 1);
 	XMVECTOR up = XMVectorSet(0, 0, 1, 0);
 	XMMATRIX view1 = XMMatrixLookAtLH(eye, at, up);
@@ -1486,28 +1640,20 @@ void Render()
 	// set shader constant buffers
 	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
 	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
-	// clear render target view
-	//g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
 	// clear depth stencil view to 1.0 (max depth)
 	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// --- DRAW SKYBOX ---
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixTranslationFromVector(view1.r[3]);
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
 	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
 	// --- DRAW SKYBOX ---
 
@@ -1516,72 +1662,140 @@ void Render()
 	// ----- RENDER PREP -----
 
 	// ----- CUBE -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_Cube;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_RTT);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	// ----- CUBE -----
 
 	// ----- GROUND PLANE -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = wrld_GroundPlane;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
 	// ----- GROUND PLANE -----
 
 	// ----- BRAZIER01 -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	// set VS resources
 	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set GS resources
 	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
-	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
-	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
 	// ----- BRAZIER01 -----
 
+	// ----- SPACESHIP -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Spaceship, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Spaceship, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Spaceship;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Spaceship);
+	g_p_deviceContext->DrawIndexed(g_numInds_Spaceship, 0, 0);
+	// ----- SPACESHIP -----
+
+	// ----- SUN -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Sun;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Sun);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- SUN -----
+
+	// ----- EARTH -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Earth;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Earth);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- EARTH -----
+
+	// ----- MOON -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Moon;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Moon);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MOON -----
+
+	// ----- MARS -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Mars;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Mars);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- MARS -----
+
+	// ----- JUPITER -----
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Planet, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Planet, DXGI_FORMAT_R32_UINT, 0);
+	cBufferVS.wrld = wrld_Jupiter;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Jupiter);
+	g_p_deviceContext->DrawIndexed(g_numInds_Planet, 0, 0);
+	// ----- JUPITER -----
+
 	// ----- VISUAL LIGHTS -----
-	// set vert/ind buffers
 	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
 	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
-	// clear offsets
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
@@ -1597,18 +1811,13 @@ void Render()
 	distScale = 10.0f;
 	for (UINT i = 0; i < LIGHTS_DIR; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
 			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = dLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- DIRECTIONAL ---
@@ -1617,17 +1826,12 @@ void Render()
 	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
 	for (UINT i = 0; i < LIGHTS_PNT; i++)
 	{
-		// set VS constant buffer values
 		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
-		// set VS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-		// set PS constant buffer values
 		cBufferPS.instanceColors[0] = pLights[i].color;
-		// set PS resources
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
-		// draw
 		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- POINT ---
