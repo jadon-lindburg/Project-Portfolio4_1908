@@ -38,7 +38,7 @@ struct S_PSINPUT
 };
 
 // SHADER VARIABLES
-TextureCube txDiffuseCube : register(t0);
+TextureCube txDiffuseCube : register(t1);
 SamplerState samplerLinear : register(s0);
 
 // CONSTANT BUFFER

@@ -25,9 +25,6 @@
 #include "PS_SolidColor.csh"
 #include "PS_SolidColorLights.csh"
 
-// meshes (Obj2Header)
-#include "Assets/heavenTorch.h"
-
 using namespace DirectX;
 // ---------- INCLUDES ----------
 
@@ -39,7 +36,7 @@ using namespace DirectX;
 #define MAX_LIGHTS_PNT 3
 #define MAX_LIGHTS_SPT 3
 
-#define DEGTORAD(deg) (deg * (XM_2PI / 180.0f))
+#define DEGTORAD(deg) (deg * (XM_PI / 180.0f))
 // ---------- MACROS ----------
 
 /* KEY
@@ -133,36 +130,41 @@ D3D11_VIEWPORT				g_viewport1;
 ID3D11InputLayout*			g_p_vertexLayout = nullptr;					//released
 // --- INPUT LAYOUT ---
 // --- VERT / IND BUFFERS ---
-// TEST MESH
-ID3D11Buffer*				g_p_vBuffer_TestHardMesh = nullptr;			//released
-ID3D11Buffer*				g_p_iBuffer_TestHardMesh = nullptr;			//released
-UINT						g_numVerts_TestHardMesh = 0;
-UINT						g_numInds_TestHardMesh = 0;
+// SKYBOX
+ID3D11Buffer*				g_p_vBuffer_Skybox = nullptr;				//
+ID3D11Buffer*				g_p_iBuffer_Skybox = nullptr;				//
+UINT						g_numVerts_Skybox = 0;
+UINT						g_numInds_Skybox = 0;
+// CUBE
+ID3D11Buffer*				g_p_vBuffer_Cube = nullptr;					//released
+ID3D11Buffer*				g_p_iBuffer_Cube = nullptr;					//released
+UINT						g_numVerts_Cube = 0;
+UINT						g_numInds_Cube = 0;
 // TEST OBJ2HEADER MESH
 ID3D11Buffer*				g_p_vBuffer_TestHeaderMesh = nullptr;		//released
 ID3D11Buffer*				g_p_iBuffer_TestHeaderMesh = nullptr;		//released
 UINT						g_numVerts_TestHeaderMesh = 0;
 UINT						g_numInds_TestHeaderMesh = 0;
-// TEST PROCEDURAL MESH
-ID3D11Buffer*				g_p_vBuffer_TestProcMesh = nullptr;			//released
-ID3D11Buffer*				g_p_iBuffer_TestProcMesh = nullptr;			//released
-UINT						g_numVerts_TestProcMesh = 0;
-UINT						g_numInds_TestProcMesh = 0;
-UINT						g_numDivisions_TestProcMesh = 100;
-FLOAT						g_scale_TestProcMesh = 100.0f;
-// TEST LOAD MESH
-ID3D11Buffer*				g_p_vBuffer_TestLoadMesh = nullptr;			//released
-ID3D11Buffer*				g_p_iBuffer_TestLoadMesh = nullptr;			//released
-UINT						g_numVerts_TestLoadMesh = 0;
-UINT						g_numInds_TestLoadMesh = 0;
+// GROUND PLANE
+ID3D11Buffer*				g_p_vBuffer_GroundPlane = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_GroundPlane = nullptr;			//released
+UINT						g_numVerts_GroundPlane = 0;
+UINT						g_numInds_GroundPlane = 0;
+UINT						g_numDivisions_GroundPlane = 100;
+FLOAT						g_scale_GroundPlane = 10.0f;
+// BRAZIER01
+ID3D11Buffer*				g_p_vBuffer_Brazier01 = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_Brazier01 = nullptr;			//released
+UINT						g_numVerts_Brazier01 = 0;
+UINT						g_numInds_Brazier01 = 0;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
 ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- CONSTANT BUFFERS ---
 // --- TEXTURES / SHADER RESOURCE VIEWS ---
-ID3D11ShaderResourceView*	g_p_SRV_TestHeaderMesh = nullptr;			//released
 ID3D11ShaderResourceView*	g_p_SRV_Skybox = nullptr;					//released
+ID3D11ShaderResourceView*	g_p_SRV_Brazier01 = nullptr;				//released
 ID3D11Texture2D*			g_p_tex_RTT = nullptr;						//released
 ID3D11ShaderResourceView*	g_p_SRV_RTT = nullptr;						//released
 // --- TEXTURES / SHADER RESOURCE VIEWS ---
@@ -191,15 +193,15 @@ ID3D11PixelShader*			g_p_PS_SolidColorLights = nullptr;			//released
 XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
 XMFLOAT4X4					g_proj;
-XMFLOAT4X4					g_wrld_TestHardMesh;
-XMFLOAT4X4					g_wrld_TestHeaderMesh;
-XMFLOAT4X4					g_wrld_TestProcMesh;
-XMFLOAT4X4					g_wrld_TestLoadMesh;
+XMFLOAT4X4					g_wrld_Skybox;
+XMFLOAT4X4					g_wrld_Cube;
+XMFLOAT4X4					g_wrld_GroundPlane;
+XMFLOAT4X4					g_wrld_Brazier01;
 // ----- MATRICES -----
 
 // ----- CAMERA VALUES -----
 FLOAT						g_camMoveSpeed = 4.0f;		// units per second
-FLOAT						g_camRotSpeed = 25.0f;		// degrees per second
+FLOAT						g_camRotSpeed = 40.0f;		// degrees per second
 FLOAT						g_camZoomSpeed = 0.01f;		// zoom level per second
 FLOAT						g_camZoom = 1.0f;			// current zoom level
 const FLOAT					g_camZoomMin = 0.5f;
@@ -227,12 +229,11 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-void				ProcessHeaderVerts(_OBJ_VERT_*, UINT, S_VERTEX**);
 void				CreateProceduralGrid(S_VERTEX, UINT, FLOAT, S_VERTEX**, UINT&, UINT**, UINT&);
 void				ProcessOBJData(const char*, S_VERTEX**, UINT&, UINT**, UINT&);
 HRESULT				InitDepthStencilView(UINT, UINT, ID3D11Texture2D**, ID3D11DepthStencilView**);
-HRESULT				InitVertexBuffer(UINT, ID3D11Buffer**);
-HRESULT				InitIndexBuffer(UINT, ID3D11Buffer**);
+HRESULT				InitVertexBuffer(UINT, S_VERTEX**, ID3D11Buffer**);
+HRESULT				InitIndexBuffer(UINT, UINT**, ID3D11Buffer**);
 HRESULT				InitConstantBuffer(UINT, ID3D11Buffer**);
 HRESULT				InitSamplerState(ID3D11SamplerState**);
 void				Render();
@@ -325,7 +326,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	g_hWnd = CreateWindowW(g_szWindowClass, g_szTitle, WS_OVERLAPPEDWINDOW ^ WS_THICKFRAME ^ WS_MAXIMIZEBOX,
 		CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-	// ++ XOR with thickframe prevents click & drag resize, XOR with maximizebox prevents control button resize
+	// XOR with thickframe prevents click & drag resize, XOR with maximizebox prevents control button resize
 
 	if (!g_hWnd)
 	{
@@ -375,7 +376,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = g_p_swapChain->GetBuffer(0, __uuidof(p_backBuffer), (void**)&p_backBuffer);
 	// use buffer to create render target view
 	hr = g_p_device->CreateRenderTargetView(p_backBuffer, nullptr, &g_p_renderTargetView);
-	hr = g_p_device->CreateRenderTargetView(nullptr, nullptr, nullptr);
+	//hr = g_p_device->CreateRenderTargetView(g_p_tex_RTT, nullptr, &g_p_renderTargetView_RTT);
 	// release buffer
 	p_backBuffer->Release();
 	// ---------- RENDER TARGET VIEWS ----------
@@ -436,83 +437,65 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ---------- INPUT LAYOUT ----------
 
 	// ---------- MESHES ----------
-	// ----- TEST HARDCODED MESH -----
-	// declare vertex / index data
-	S_VERTEX verts_TestHardMesh[] =
-	{
-		// pos, norm, tex, color
-		{ { 0, -0.5f, -0.5f, 1 }, { 0, -0.5f, -0.5f }, { 0, 0, 0 }, { 0, 0, 1, 1} },			// bottom front
-		{ { 0.5f, -0.5f, 0.5f, 1 }, { 0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 0, 1, 0, 1} },		// bottom back right
-		{ { -0.5f, -0.5f, 0.5f, 1 }, { -0.33f, -0.33f, 0.33f }, { 0, 0, 0 }, { 1, 0, 0, 1} },	// bottom back left
-		{ { 0, 0.5f, 0, 1 }, { 0, 0, 0 }, { 0, 1, 0 }, { 1, 1, 1, 1} }							// top
-	};
-	g_numVerts_TestHardMesh = ARRAYSIZE(verts_TestHardMesh);
-	int inds_TestHardMesh[] =
-	{
-		0, 1, 2, // bottom
-		3, 0, 2, // front left
-		3, 1, 0, // front right
-		3, 2, 1	 // back
-	};
-	g_numInds_TestHardMesh = ARRAYSIZE(inds_TestHardMesh);
+	// ----- SKYBOX -----
+	// load vertex / index data
+	S_VERTEX* p_verts_Skybox = nullptr;
+	UINT* p_inds_Skybox = nullptr;
+	ProcessOBJData("Assets/skybox.obj", &p_verts_Skybox, g_numVerts_Skybox, &p_inds_Skybox, g_numInds_Skybox);
 	// create vertex / index buffers
-	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestHardMesh, (S_VERTEX**)&verts_TestHardMesh,
-		&g_p_vBuffer_TestHardMesh);
-	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestHardMesh, (UINT**)&inds_TestHardMesh, &g_p_iBuffer_TestHardMesh);
+	hr = InitVertexBuffer(g_numVerts_Skybox, &p_verts_Skybox, &g_p_vBuffer_Skybox);
+	hr = InitIndexBuffer(g_numInds_Skybox, &p_inds_Skybox, &g_p_iBuffer_Skybox);
 	// set initial world matrix
-	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
-	// ----- TEST HARDCODED MESH -----
-
-	// ----- TEST OBJ2HEADER MESH -----
-	// get number of verts / inds
-	g_numVerts_TestHeaderMesh = ARRAYSIZE(heavenTorch_data);
-	g_numInds_TestHeaderMesh = ARRAYSIZE(heavenTorch_indicies);
-	// store verts / inds
-	S_VERTEX* p_verts_TestHeaderMesh = nullptr;
-	UINT* p_inds_TestHeaderMesh = nullptr;
-	ProcessHeaderVerts((_OBJ_VERT_*)&heavenTorch_data, g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh);
-	for (UINT i = 0; i < g_numInds_TestHeaderMesh; i++)
-		p_inds_TestHeaderMesh[i] = heavenTorch_indicies[i];
-	// create vertex / index buffers
-	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestHeaderMesh, &p_verts_TestHeaderMesh, &g_p_vBuffer_TestHeaderMesh);
-	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestHeaderMesh, &p_inds_TestHeaderMesh, &g_p_iBuffer_TestHeaderMesh);
-	// set initial world matrix
-	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Skybox, XMMatrixIdentity());
 	// clear temp memory
-	delete[] p_verts_TestHeaderMesh;
-	// ----- TEST OBJ2HEADER MESH -----
+	delete[] p_verts_Skybox;
+	delete[] p_inds_Skybox;
+	// ----- SKYBOX -----
 
-	// ----- TEST PROCEDURAL MESH -----
+	// ----- CUBE -----
+	// load vertex / index data
+	S_VERTEX* p_verts_Cube = nullptr;
+	UINT* p_inds_Cube = nullptr;
+	ProcessOBJData("Assets/cube.obj", &p_verts_Cube, g_numVerts_Cube, &p_inds_Cube, g_numInds_Cube);
+	// create vertex / index buffers
+	hr = InitVertexBuffer(g_numVerts_Cube, (S_VERTEX**)&p_verts_Cube, &g_p_vBuffer_Cube);
+	hr = InitIndexBuffer(g_numInds_Cube, (UINT**)&p_inds_Cube, &g_p_iBuffer_Cube);
+	// set initial world matrix
+	XMStoreFloat4x4(&g_wrld_Cube, XMMatrixIdentity());
+	// ----- CUBE -----
+
+	// ----- GROUND PLANE -----
 	// generate vertex / index data
 	S_VERTEX gridOrigin = { { 0, 0, 0, 1 }, { 0, 1, 0 }, { 0, 0, 0 }, {} };
-	S_VERTEX* p_verts_TestProcMesh = nullptr;
-	UINT* p_inds_TestProcMesh = nullptr;
-	CreateProceduralGrid(gridOrigin, g_numDivisions_TestProcMesh, g_scale_TestProcMesh,
-		&p_verts_TestProcMesh, g_numVerts_TestProcMesh, &p_inds_TestProcMesh, g_numInds_TestProcMesh);
+	S_VERTEX* p_verts_GroundPlane = nullptr;
+	UINT* p_inds_GroundPlane = nullptr;
+	CreateProceduralGrid(gridOrigin, g_numDivisions_GroundPlane, g_scale_GroundPlane,
+		&p_verts_GroundPlane, g_numVerts_GroundPlane, &p_inds_GroundPlane, g_numInds_GroundPlane);
 	// create vertex / index buffers
-	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestProcMesh, &p_verts_TestProcMesh, &g_p_vBuffer_TestProcMesh);
-	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestProcMesh, &p_inds_TestProcMesh, &g_p_iBuffer_TestProcMesh);
+	hr = InitVertexBuffer(g_numVerts_GroundPlane, &p_verts_GroundPlane, &g_p_vBuffer_GroundPlane);
+	hr = InitIndexBuffer(g_numInds_GroundPlane, &p_inds_GroundPlane, &g_p_iBuffer_GroundPlane);
 	// set initial world matrix
-	XMStoreFloat4x4(&g_wrld_TestProcMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_GroundPlane, XMMatrixIdentity());
 	// clear temp memory
-	delete[] p_verts_TestProcMesh;
-	delete[] p_inds_TestProcMesh;
-	// ----- TEST PROCEDURAL MESH -----
+	delete[] p_verts_GroundPlane;
+	delete[] p_inds_GroundPlane;
+	// ----- GROUND PLANE -----
 
-	// ----- TEST LOAD MESH -----
+	// ----- BRAZIER01 -----
 	// load vertex / index data
-	S_VERTEX* p_verts_TestLoadMesh = nullptr;
-	UINT* p_inds_TestLoadMesh = nullptr;
-	ProcessOBJData("Assets/heavenTorch.obj", &p_verts_TestLoadMesh, g_numVerts_TestLoadMesh, &p_inds_TestLoadMesh, g_numInds_TestLoadMesh);
+	S_VERTEX* p_verts_Brazier01 = nullptr;
+	UINT* p_inds_Brazier01 = nullptr;
+	ProcessOBJData("Assets/heavenTorch.obj", &p_verts_Brazier01, g_numVerts_Brazier01,
+		&p_inds_Brazier01, g_numInds_Brazier01);
 	// create vertex / index buffers
-	hr = InitVertexBuffer(sizeof(S_VERTEX) * g_numVerts_TestLoadMesh, &p_verts_TestLoadMesh, &g_p_vBuffer_TestLoadMesh);
-	hr = InitIndexBuffer(sizeof(int) * g_numInds_TestLoadMesh, &p_inds_TestLoadMesh, &g_p_iBuffer_TestLoadMesh);
+	hr = InitVertexBuffer(g_numVerts_Brazier01, &p_verts_Brazier01, &g_p_vBuffer_Brazier01);
+	hr = InitIndexBuffer(g_numInds_Brazier01, &p_inds_Brazier01, &g_p_iBuffer_Brazier01);
 	// set initial world matrix
-	XMStoreFloat4x4(&g_wrld_TestLoadMesh, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Brazier01, XMMatrixIdentity());
 	// clear temp memory
-	delete[] p_verts_TestLoadMesh;
-	delete[] p_inds_TestLoadMesh;
-	// ----- TEST LOAD MESH -----
+	delete[] p_verts_Brazier01;
+	delete[] p_inds_Brazier01;
+	// ----- BRAZIER01 -----
 	// ---------- MESHES ----------
 
 	// set type of topology to draw
@@ -524,8 +507,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// ---------- CONSTANT BUFFERS ----------
 
 	// ---------- SHADER RESOURCE VIEWS ----------
+	// skybox
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/skybox.dds", nullptr, &g_p_SRV_Skybox);
 	// Brazier01
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heaventorch_diffuse.dds", nullptr, &g_p_SRV_TestHeaderMesh);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heavenTorch_diffuse.dds", nullptr, &g_p_SRV_Brazier01);
 	// ---------- SHADER RESOURCE VIEWS ----------
 
 	// ---------- SAMPLER STATES ----------
@@ -543,10 +528,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
 	// projection
 	XMStoreFloat4x4(&g_proj, XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f));
-
-	// mesh world matrices
-	XMStoreFloat4x4(&g_wrld_TestHardMesh, XMMatrixIdentity());
-	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, XMMatrixIdentity());
 	// ---------- MATRICES ----------
 
 	// ATTACH D3D TO WINDOW
@@ -621,30 +602,6 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	}
 	return (INT_PTR)FALSE;
-}
-
-void ProcessHeaderVerts(_OBJ_VERT_* _p_data, UINT _numVerts, S_VERTEX** _pp_verts)
-{
-	S_VERTEX* p_verts = new S_VERTEX[_numVerts];
-	for (UINT i = 0; i < _numVerts; i++)
-	{
-		// retrieve position
-		p_verts[i].pos.x = _p_data[i].pos[0];
-		p_verts[i].pos.y = _p_data[i].pos[1];
-		p_verts[i].pos.z = _p_data[i].pos[2];
-		p_verts[i].pos.w = 1;
-		// retrieve normals
-		p_verts[i].norm.x = _p_data[i].nrm[0];
-		p_verts[i].norm.y = _p_data[i].nrm[1];
-		p_verts[i].norm.z = _p_data[i].nrm[2];
-		// retrieve texcoords
-		p_verts[i].tex.x = _p_data[i].uvw[0];
-		p_verts[i].tex.y = _p_data[i].uvw[1];
-		p_verts[i].tex.z = _p_data[i].uvw[2];
-		// set color
-		p_verts[i].color = XMFLOAT4(1, 1, 1, 1);
-	}
-	*_pp_verts = p_verts;
 }
 
 void CreateProceduralGrid(S_VERTEX _origin, UINT _numDivisions, FLOAT _scale,
@@ -766,10 +723,10 @@ HRESULT InitDepthStencilView(UINT _width, UINT _height, ID3D11Texture2D** _pp_de
 	return g_p_device->CreateDepthStencilView(*_pp_depthStencil, &depthStencilViewDesc, _pp_depthStencilView);
 }
 
-HRESULT InitVertexBuffer(UINT _byteWidth, S_VERTEX** _pp_verts, ID3D11Buffer** _pp_vBuffer)
+HRESULT InitVertexBuffer(UINT _numVerts, S_VERTEX** _pp_verts, ID3D11Buffer** _pp_vBuffer)
 {
 	D3D11_BUFFER_DESC bufferDesc = {};
-	bufferDesc.ByteWidth = _byteWidth;
+	bufferDesc.ByteWidth = sizeof(S_VERTEX) * _numVerts;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
@@ -778,10 +735,10 @@ HRESULT InitVertexBuffer(UINT _byteWidth, S_VERTEX** _pp_verts, ID3D11Buffer** _
 	return g_p_device->CreateBuffer(&bufferDesc, &subData, _pp_vBuffer);
 }
 
-HRESULT InitIndexBuffer(UINT _byteWidth, UINT** _pp_inds, ID3D11Buffer** _pp_iBuffer)
+HRESULT InitIndexBuffer(UINT _numInds, UINT** _pp_inds, ID3D11Buffer** _pp_iBuffer)
 {
 	D3D11_BUFFER_DESC bufferDesc = {};
-	bufferDesc.ByteWidth = _byteWidth;
+	bufferDesc.ByteWidth = sizeof(UINT) * _numInds;
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	bufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	bufferDesc.CPUAccessFlags = 0;
@@ -859,10 +816,10 @@ void Render()
 	XMMATRIX wrld = XMLoadFloat4x4(&g_wrld);
 	XMMATRIX view = XMLoadFloat4x4(&g_view);
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
-	XMMATRIX wrld_TestHardMesh = XMLoadFloat4x4(&g_wrld_TestHardMesh);
-	XMMATRIX wrld_TestHeaderMesh = XMLoadFloat4x4(&g_wrld_TestHeaderMesh);
-	XMMATRIX wrld_TestProcMesh = XMLoadFloat4x4(&g_wrld_TestProcMesh);
-	XMMATRIX wrld_TestLoadMesh = XMLoadFloat4x4(&g_wrld_TestLoadMesh);
+	XMMATRIX wrld_Skybox = XMLoadFloat4x4(&g_wrld_Skybox);
+	XMMATRIX wrld_Cube = XMLoadFloat4x4(&g_wrld_Cube);
+	XMMATRIX wrld_GroundPlane = XMLoadFloat4x4(&g_wrld_GroundPlane);
+	XMMATRIX wrld_Brazier01 = XMLoadFloat4x4(&g_wrld_Brazier01);
 	// ----- RETRIEVE MATRICES -----
 
 	// ----- LIGHTS -----
@@ -889,18 +846,14 @@ void Render()
 	// ----- LIGHTS -----
 
 	// ----- UPDATE WORLD POSITIONS -----
-	// --- TEST HARDCODED MESH ---
+	// --- CUBE ---
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_TestHardMesh = XMMatrixTranslation(5, 2, 0) * rotate;
-	// --- TEST HARDCODED MESH ---
-	// --- TEST OBJ2HEADER MESH ---
-	rotate = XMMatrixRotationY(-0.3f * t);
-	wrld_TestHeaderMesh = rotate * XMMatrixTranslation(2, 0, 0);
-	// --- TEST OBJ2HEADER MESH ---
-	// --- TEST PROCEDURAL MESH ---
-	wrld_TestProcMesh = XMMatrixTranslation(0, -1, 0);
-	// --- TEST PROCEDURAL MESH ---
+	wrld_Cube = XMMatrixTranslation(5, 2, 0) * rotate;
+	// --- CUBE ---
+	// --- GROUND PLANE ---
+	wrld_GroundPlane = XMMatrixTranslation(0, -1, 0);
+	// --- GROUND PLANE ---
 	// --- LIGHTS ---
 	// DLIGHT 0
 	XMMATRIX lightMatrix = XMMatrixTranslation(dLights[0].dir.x, dLights[0].dir.y, dLights[0].dir.z);
@@ -1046,20 +999,6 @@ void Render()
 	// DRAWING
 
 	// ---------- FIRST RENDER PASS ----------
-	// ----- RENDER PREP -----
-	// clear render target view
-	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
-	// clear depth stencil view to 1.0 (max depth)
-	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-	// set viewport
-	g_p_deviceContext->RSSetViewports(1, &g_viewport0);
-	// set render target view
-	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
-	// set shader constant buffers
-	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
-	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
-	// ----- RENDER PREP -----
-
 	// ----- PER-INSTANCE DATA -----
 	XMMATRIX instanceOffsets[MAX_INSTANCES] = {};
 	XMFLOAT4 instanceColors[MAX_INSTANCES] = {};
@@ -1072,7 +1011,7 @@ void Render()
 	else
 	{
 		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
-		XMVECTOR at = wrld_TestHardMesh.r[3];
+		XMVECTOR at = wrld_Cube.r[3];
 		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
 		cBufferVS.view = XMMatrixLookAtLH(eye, at, up);
 	}
@@ -1088,12 +1027,49 @@ void Render()
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 
-	// ----- TEST HARDCODED MESH -----
+	// ----- RENDER PREP -----
+	// set viewport
+	g_p_deviceContext->RSSetViewports(1, &g_viewport0);
+	// set render target view
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	// set shader constant buffers
+	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
+	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
+	// clear render target view
+	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
+	// clear depth stencil view to 1.0 (max depth)
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// --- DRAW SKYBOX ---
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = wrld_TestHardMesh;
+	cBufferVS.wrld = XMMatrixTranslationFromVector(view.r[3]);
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
+	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
+	// --- DRAW SKYBOX ---
+
+	// re-clear depth stencil view
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	// ----- RENDER PREP -----
+
+	// ----- CUBE -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = wrld_Cube;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	// set VS resources
@@ -1103,44 +1079,15 @@ void Render()
 	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
-	g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
-	// ----- TEST HARDCODED MESH -----
-	// ----- TEST OBJ2HEADER MESH -----
+	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	// ----- CUBE -----
+
+	// ----- GROUND PLANE -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHeaderMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHeaderMesh, DXGI_FORMAT_R32_UINT, 0);
-	// mesh instance offsets
-	instanceOffsets[0] = XMMatrixTranslation(0, 0, 0);
-	instanceOffsets[1] = XMMatrixTranslation(2, 0, 0);
-	instanceOffsets[2] = XMMatrixTranslation(4, 0, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
-	cBufferVS.wrld = wrld_TestHeaderMesh;
-	cBufferVS.instanceOffsets[0] = instanceOffsets[0];
-	cBufferVS.instanceOffsets[1] = instanceOffsets[1];
-	cBufferVS.instanceOffsets[2] = instanceOffsets[2];
-	// set VS resources
-	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
-	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
-	// set PS constant buffer values
-	// set PS resources
-	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
-	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_TestHeaderMesh);
-	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
-	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);	// use default shader
-	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);		// use fancy shader
-	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);	// use default shader
-	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0);		// use fancy shader
-	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);	// use default shader
-	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);		// use fancy shader
-	// draw
-	g_p_deviceContext->DrawIndexedInstanced(g_numInds_TestHeaderMesh, 3, 0, 0, 0);
-	// ----- TEST OBJ2HEADER MESH -----
-	// ----- TEST PROCEDURAL MESH -----
-	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestProcMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestProcMesh, DXGI_FORMAT_R32_UINT, 0);
-	// set VS constant buffer values
-	cBufferVS.wrld = wrld_TestProcMesh;
+	cBufferVS.wrld = wrld_GroundPlane;
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	// set VS resources
@@ -1153,12 +1100,13 @@ void Render()
 	// set PS resources
 	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
 	// draw
-	g_p_deviceContext->DrawIndexed(g_numInds_TestProcMesh, 0, 0);
-	// ----- TEST PROCEDURAL MESH -----
-	// ----- TEST LOAD MESH -----
+	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
+	// ----- GROUND PLANE -----
+
+	// ----- BRAZIER01 -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestLoadMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestLoadMesh, DXGI_FORMAT_R32_UINT, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
 	// set VS constant buffer values
 	cBufferVS.wrld = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
@@ -1171,15 +1119,16 @@ void Render()
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	// set PS resources
-	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_TestHeaderMesh);
 	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
 	// draw
-	g_p_deviceContext->DrawIndexed(g_numInds_TestLoadMesh, 0, 0);
-	// ----- TEST LOAD MESH -----
+	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
+	// ----- BRAZIER01 -----
+
 	// ----- VISUAL LIGHTS -----
 	// set vert/ind buffers
-	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_TestHardMesh, strides, offsets);
-	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_TestHardMesh, DXGI_FORMAT_R32_UINT, 0);
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
 	// clear offsets
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
@@ -1208,7 +1157,7 @@ void Render()
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
 		// draw
-		g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- DIRECTIONAL ---
 	// --- POINT ---
@@ -1227,7 +1176,7 @@ void Render()
 		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
 		// draw
-		g_p_deviceContext->DrawIndexed(g_numInds_TestHardMesh, 0, 0);
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
 	}
 	// --- POINT ---
 	// ----- VISUAL LIGHTS -----
@@ -1244,9 +1193,10 @@ void Render()
 	XMStoreFloat4x4(&g_wrld, wrld);
 	XMStoreFloat4x4(&g_view, view);
 	XMStoreFloat4x4(&g_proj, proj);
-	XMStoreFloat4x4(&g_wrld_TestHardMesh, wrld_TestHardMesh);
-	XMStoreFloat4x4(&g_wrld_TestHeaderMesh, wrld_TestHeaderMesh);
-	XMStoreFloat4x4(&g_wrld_TestLoadMesh, wrld_TestLoadMesh);
+	XMStoreFloat4x4(&g_wrld_Skybox, wrld_Skybox);
+	XMStoreFloat4x4(&g_wrld_Cube, wrld_Cube);
+	XMStoreFloat4x4(&g_wrld_GroundPlane, wrld_GroundPlane);
+	XMStoreFloat4x4(&g_wrld_Brazier01, wrld_Brazier01);
 	// ----- STORE MATRICES -----
 
 	// STORE VARS
@@ -1270,26 +1220,29 @@ void Cleanup()
 	// --- SAMPLER STATES ---
 	if (g_p_samplerLinear) g_p_samplerLinear->Release();
 	// --- SHADER RESOURCE VIEWS ---
-	if (g_p_SRV_Skybox) g_p_SRV_Skybox->Release();
 	if (g_p_SRV_RTT) g_p_SRV_RTT->Release();
 	if (g_p_tex_RTT) g_p_tex_RTT->Release();
-	if (g_p_SRV_TestHeaderMesh) g_p_SRV_TestHeaderMesh->Release();
+	if (g_p_SRV_Brazier01) g_p_SRV_Brazier01->Release();
+	if (g_p_SRV_Skybox) g_p_SRV_Skybox->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
 	// --- VERT / IND BUFFERS ---
-	// test load mesh
-	if (g_p_iBuffer_TestLoadMesh) g_p_iBuffer_TestLoadMesh->Release();
-	if (g_p_vBuffer_TestLoadMesh) g_p_vBuffer_TestLoadMesh->Release();
-	// test procedural mesh
-	if (g_p_iBuffer_TestProcMesh) g_p_iBuffer_TestProcMesh->Release();
-	if (g_p_vBuffer_TestProcMesh) g_p_vBuffer_TestProcMesh->Release();
+	// BRAZIER01
+	if (g_p_iBuffer_Brazier01) g_p_iBuffer_Brazier01->Release();
+	if (g_p_vBuffer_Brazier01) g_p_vBuffer_Brazier01->Release();
+	// GROUND PLANE
+	if (g_p_iBuffer_GroundPlane) g_p_iBuffer_GroundPlane->Release();
+	if (g_p_vBuffer_GroundPlane) g_p_vBuffer_GroundPlane->Release();
 	// test obj2header mesh
 	if (g_p_iBuffer_TestHeaderMesh) g_p_iBuffer_TestHeaderMesh->Release();
 	if (g_p_vBuffer_TestHeaderMesh) g_p_vBuffer_TestHeaderMesh->Release();
-	// test hardcoded mesh
-	if (g_p_iBuffer_TestHardMesh) g_p_iBuffer_TestHardMesh->Release();
-	if (g_p_vBuffer_TestHardMesh) g_p_vBuffer_TestHardMesh->Release();
+	// cube
+	if (g_p_iBuffer_Cube) g_p_iBuffer_Cube->Release();
+	if (g_p_vBuffer_Cube) g_p_vBuffer_Cube->Release();
+	// skybox
+	if (g_p_iBuffer_Skybox) g_p_iBuffer_Skybox->Release();
+	if (g_p_vBuffer_Skybox) g_p_vBuffer_Skybox->Release();
 	// --- VERTEX LAYOUT ---
 	if (g_p_vertexLayout) g_p_vertexLayout->Release();
 	// --- DEPTH STENCILS ---

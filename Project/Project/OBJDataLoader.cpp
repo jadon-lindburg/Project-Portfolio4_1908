@@ -68,7 +68,7 @@ S_OBJ_DATA LoadOBJData(const char* _filepath)
 			case 't': // texcoord
 				float3 tex;
 				tex.x = strtof(tokens[1], nullptr);
-				tex.y = 1.0f - strtof(tokens[2], nullptr);
+				tex.y = strtof(tokens[2], nullptr);
 				if (tokens.size() > 3)
 					tex.z = strtof(tokens[3], nullptr);
 				else
@@ -190,6 +190,7 @@ S_OBJ_DATA LoadOBJData(const char* _filepath)
 		vert.pos[2] = posList[vertDataNumList[i].x].z;
 		vert.tex[0] = texList[vertDataNumList[i].y].x;
 		vert.tex[1] = texList[vertDataNumList[i].y].y;
+		vert.tex[2] = texList[vertDataNumList[i].y].z;
 		vert.norm[0] = normList[vertDataNumList[i].z].x;
 		vert.norm[1] = normList[vertDataNumList[i].z].y;
 		vert.norm[2] = normList[vertDataNumList[i].z].z;
