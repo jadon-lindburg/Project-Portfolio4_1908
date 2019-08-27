@@ -192,7 +192,9 @@ ID3D11PixelShader*			g_p_PS_SolidColorLights = nullptr;			//released
 // ----- MATRICES -----
 XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
+XMFLOAT4X4					g_view_RTT;
 XMFLOAT4X4					g_proj;
+XMFLOAT4X4					g_proj_RTT;
 XMFLOAT4X4					g_wrld_Skybox;
 XMFLOAT4X4					g_wrld_Cube;
 XMFLOAT4X4					g_wrld_GroundPlane;
@@ -370,19 +372,61 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 		&swapChainDesc, &g_p_swapChain, &g_p_device, 0, &g_p_deviceContext);
 	// ---------- D3D DEVICE AND SWAP CHAIN ----------
 
+	// ---------- SHADER RESOURCE VIEWS ----------
+	// --- RTT ---
+	// texture
+	D3D11_TEXTURE2D_DESC texDesc_RTT = {};
+	texDesc_RTT.Width = windowWidth;
+	texDesc_RTT.Height = windowHeight;
+	texDesc_RTT.MipLevels = 1;
+	texDesc_RTT.ArraySize = 1;
+	texDesc_RTT.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	texDesc_RTT.SampleDesc.Count = 1;
+	texDesc_RTT.Usage = D3D11_USAGE_DEFAULT;
+	texDesc_RTT.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	texDesc_RTT.CPUAccessFlags = 0;
+	texDesc_RTT.MiscFlags = 0;
+	hr = g_p_device->CreateTexture2D(&texDesc_RTT, NULL, &g_p_tex_RTT);
+	// shader resource view
+	D3D11_SHADER_RESOURCE_VIEW_DESC SRVDesc_RTT;
+	SRVDesc_RTT.Format = texDesc_RTT.Format;
+	SRVDesc_RTT.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	SRVDesc_RTT.Texture2D.MostDetailedMip = 0;
+	SRVDesc_RTT.Texture2D.MipLevels = 1;
+	hr = g_p_device->CreateShaderResourceView(g_p_tex_RTT, &SRVDesc_RTT, &g_p_SRV_RTT);
+	// --- RTT ---
+	// skybox
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/skybox.dds", nullptr, &g_p_SRV_Skybox);
+	// Brazier01
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heavenTorch_diffuse.dds", nullptr, &g_p_SRV_Brazier01);
+	// ---------- SHADER RESOURCE VIEWS ----------
+
+	// ---------- SAMPLER STATES ----------
+	hr = InitSamplerState(&g_p_samplerLinear);
+	// ---------- SAMPLER STATES ----------
+
 	// ---------- RENDER TARGET VIEWS ----------
+	// --- MAIN ---
+	// get back buffer from swap chain
 	ID3D11Resource* p_backBuffer = nullptr;
-	// get buffer from swap chain
 	hr = g_p_swapChain->GetBuffer(0, __uuidof(p_backBuffer), (void**)&p_backBuffer);
-	// use buffer to create render target view
+	// use back buffer to create render target view
 	hr = g_p_device->CreateRenderTargetView(p_backBuffer, nullptr, &g_p_renderTargetView);
-	//hr = g_p_device->CreateRenderTargetView(g_p_tex_RTT, nullptr, &g_p_renderTargetView_RTT);
-	// release buffer
+	// release back buffer
 	p_backBuffer->Release();
+	// --- MAIN ---
+	// --- RTT ---
+	D3D11_RENDER_TARGET_VIEW_DESC RTVDesc_RTT;
+	RTVDesc_RTT.Format = texDesc_RTT.Format;
+	RTVDesc_RTT.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+	RTVDesc_RTT.Texture2D.MipSlice = 0;
+	hr = g_p_device->CreateRenderTargetView(g_p_tex_RTT, &RTVDesc_RTT, &g_p_renderTargetView_RTT);
+	// --- RTT ---
 	// ---------- RENDER TARGET VIEWS ----------
 
 	// ---------- DEPTH STENCILS ----------
 	hr = InitDepthStencilView(windowWidth, windowHeight, &g_p_depthStencil, &g_p_depthStencilView);
+	hr = InitDepthStencilView(windowWidth, windowHeight, &g_p_depthStencil_RTT, &g_p_depthStencilView_RTT);
 	// ---------- DEPTH STENCILS ----------
 
 	// ---------- VIEWPORTS ----------
@@ -506,28 +550,29 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = InitConstantBuffer(sizeof(S_CBUFFER_PS), &g_p_cBufferPS);
 	// ---------- CONSTANT BUFFERS ----------
 
-	// ---------- SHADER RESOURCE VIEWS ----------
-	// skybox
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/skybox.dds", nullptr, &g_p_SRV_Skybox);
-	// Brazier01
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heavenTorch_diffuse.dds", nullptr, &g_p_SRV_Brazier01);
-	// ---------- SHADER RESOURCE VIEWS ----------
-
-	// ---------- SAMPLER STATES ----------
-	hr = InitSamplerState(&g_p_samplerLinear);
-	// ---------- SAMPLER STATES ----------
-
 	// ---------- MATRICES ----------
 	// world
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
+
 	// view
+	// main
 	XMVECTOR eye = XMVectorSet(0, 6, -10, 0);
 	XMVECTOR at = XMVectorSet(0, 2, 0, 0);
 	XMVECTOR up = XMVectorSet(0, 1, 0, 0);
 	XMMATRIX view = XMMatrixLookAtLH(eye, at, up);
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
+	// RTT
+	eye = XMVectorSet(0, 6, -10, 0);
+	at = XMVectorSet(0, 2, 0, 0);
+	up = XMVectorSet(0, 1, 0, 0);
+	view = XMMatrixLookAtLH(eye, at, up);
+	XMStoreFloat4x4(&g_view_RTT, XMMatrixInverse(&XMMatrixDeterminant(view), view));
+
 	// projection
+	// main
 	XMStoreFloat4x4(&g_proj, XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f));
+	// RTT
+	XMStoreFloat4x4(&g_proj_RTT, XMMatrixPerspectiveFovLH(XM_PIDIV4, windowWidth / (FLOAT)windowHeight, 0.01f, 100.0f));
 	// ---------- MATRICES ----------
 
 	// ATTACH D3D TO WINDOW
@@ -816,6 +861,7 @@ void Render()
 	XMMATRIX wrld = XMLoadFloat4x4(&g_wrld);
 	XMMATRIX view = XMLoadFloat4x4(&g_view);
 	XMMATRIX proj = XMLoadFloat4x4(&g_proj);
+	XMMATRIX proj_RTT = XMLoadFloat4x4(&g_proj_RTT);
 	XMMATRIX wrld_Skybox = XMLoadFloat4x4(&g_wrld_Skybox);
 	XMMATRIX wrld_Cube = XMLoadFloat4x4(&g_wrld_Cube);
 	XMMATRIX wrld_GroundPlane = XMLoadFloat4x4(&g_wrld_GroundPlane);
@@ -849,7 +895,7 @@ void Render()
 	// --- CUBE ---
 	// orbit mesh around origin
 	rotate = XMMatrixRotationY(0.5f * t);
-	wrld_Cube = XMMatrixTranslation(5, 2, 0) * rotate;
+	wrld_Cube = XMMatrixTranslation(2.5f, 2, 0) * rotate;
 	// --- CUBE ---
 	// --- GROUND PLANE ---
 	wrld_GroundPlane = XMMatrixTranslation(0, -1, 0);
@@ -994,33 +1040,25 @@ void Render()
 	proj = XMMatrixPerspectiveFovLH(XM_PIDIV4 / g_camZoom, windowWidth / (FLOAT)windowHeight, g_camNearPlane, g_camFarPlane);
 	// ----- UPDATE CAMERA -----
 
-	// UPDATES / DRAW SETUP
-	// --------------------------------------------------
-	// DRAWING
-
-	// ---------- FIRST RENDER PASS ----------
 	// ----- PER-INSTANCE DATA -----
 	XMMATRIX instanceOffsets[MAX_INSTANCES] = {};
 	XMFLOAT4 instanceColors[MAX_INSTANCES] = {};
 	// ----- PER-INSTANCE DATA -----
 
+	// UPDATES / DRAW SETUP
+	// --------------------------------------------------
+	// DRAWING
+
+	// ---------- RENDER-TO-TEXTURE PASS -----------
 	// ----- SET SHARED CONSTANT BUFFER VALUES -----
 	// vertex
-	if (g_freelook)
-		cBufferVS.view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
-	else
-	{
-		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
-		XMVECTOR at = wrld_Cube.r[3];
-		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
-		cBufferVS.view = XMMatrixLookAtLH(eye, at, up);
-	}
-	cBufferVS.proj = proj;
+	cBufferVS.view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	cBufferVS.proj = proj_RTT;
 	cBufferVS.t = t;
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 
 	// pixel
-	cBufferPS.ambientColor = { 0.5f, 0, 0, 1 };
+	cBufferPS.ambientColor = { 1, 1, 1, 1 };
 	cBufferPS.dLights[0] = dLights[0];
 	cBufferPS.pLights[0] = pLights[0];
 	cBufferPS.t = t;
@@ -1031,14 +1069,14 @@ void Render()
 	// set viewport
 	g_p_deviceContext->RSSetViewports(1, &g_viewport0);
 	// set render target view
-	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView_RTT, g_p_depthStencilView_RTT);
 	// set shader constant buffers
 	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
 	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
 	// clear render target view
-	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
+	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView_RTT, clearColor);
 	// clear depth stencil view to 1.0 (max depth)
-	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView_RTT, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// --- DRAW SKYBOX ---
 	// set vert/ind buffers
@@ -1061,7 +1099,7 @@ void Render()
 	// --- DRAW SKYBOX ---
 
 	// re-clear depth stencil view
-	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView_RTT, D3D11_CLEAR_DEPTH, 1.0f, 0);
 	// ----- RENDER PREP -----
 
 	// ----- CUBE -----
@@ -1180,7 +1218,365 @@ void Render()
 	}
 	// --- POINT ---
 	// ----- VISUAL LIGHTS -----
-	// ---------- FIRST RENDER PASS -----------
+	// ---------- RENDER-TO-TEXTURE PASS -----------
+
+	// ---------- MAIN RENDER PASS ----------
+	// ----- SET SHARED CONSTANT BUFFER VALUES -----
+	// vertex
+	if (g_freelook)
+		cBufferVS.view = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	else
+	{
+		XMVECTOR eye = XMVectorSet(0, 10, -10, 1);
+		XMVECTOR at = wrld_Cube.r[3];
+		XMVECTOR up = XMVectorSet(0, 1, 0, 0);
+		cBufferVS.view = XMMatrixLookAtLH(eye, at, up);
+	}
+	cBufferVS.proj = proj;
+	cBufferVS.t = t;
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+
+	// pixel
+	cBufferPS.ambientColor = { 0.5f, 0.5f, 0.5f, 1 };
+	cBufferPS.dLights[0] = dLights[0];
+	cBufferPS.pLights[0] = pLights[0];
+	cBufferPS.t = t;
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// ----- SET SHARED CONSTANT BUFFER VALUES -----
+
+	// ----- RENDER PREP -----
+	// set viewport
+	g_p_deviceContext->RSSetViewports(1, &g_viewport0);
+	// set render target view
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	// set shader constant buffers
+	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
+	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
+	// clear render target view
+	g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
+	// clear depth stencil view to 1.0 (max depth)
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// --- DRAW SKYBOX ---
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixTranslationFromVector(view.r[3]);
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
+	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
+	// --- DRAW SKYBOX ---
+
+	// re-clear depth stencil view
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	// ----- RENDER PREP -----
+
+	// ----- CUBE -----
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = wrld_Cube;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_RTT);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	// ----- CUBE -----
+
+	// ----- GROUND PLANE -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = wrld_GroundPlane;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
+	// ----- GROUND PLANE -----
+
+	// ----- BRAZIER01 -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
+	// ----- BRAZIER01 -----
+
+	// ----- VISUAL LIGHTS -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
+	// clear offsets
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[3] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[4] = XMMatrixIdentity();
+	// size scaling
+	sizeScale = 1.5f;
+	// distance scaling
+	distScale = 1.0f;
+	// --- DIRECTIONAL ---
+	sizeScale = 2.0f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	distScale = 10.0f;
+	for (UINT i = 0; i < LIGHTS_DIR; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
+			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = dLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	}
+	// --- DIRECTIONAL ---
+	// --- POINT ---
+	sizeScale = 0.25f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	for (UINT i = 0; i < LIGHTS_PNT; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = pLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	}
+	// --- POINT ---
+	// ----- VISUAL LIGHTS -----
+	// ---------- MAIN RENDER PASS -----------
+
+	// ---------- MINIMAP RENDER PASS ----------
+	// ----- SET SHARED CONSTANT BUFFER VALUES -----
+	// vertex
+	XMVECTOR eye = XMVectorSet(0, 7.5f, 0, 1);
+	XMVECTOR at = XMVectorSet(0, 0, 0, 1);
+	XMVECTOR up = XMVectorSet(0, 0, 1, 0);
+	XMMATRIX view1 = XMMatrixLookAtLH(eye, at, up);
+	view1 = XMMatrixInverse(&XMMatrixDeterminant(view1), view1);
+	cBufferVS.view = XMMatrixInverse(&XMMatrixDeterminant(view1), view1);
+	cBufferVS.proj = proj;
+	cBufferVS.t = t;
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+
+	// pixel
+	cBufferPS.ambientColor = { 0.5f, 0.5f, 0.5f, 1 };
+	cBufferPS.dLights[0] = dLights[0];
+	cBufferPS.pLights[0] = pLights[0];
+	cBufferPS.t = t;
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// ----- SET SHARED CONSTANT BUFFER VALUES -----
+
+	// ----- RENDER PREP -----
+	// set viewport
+	g_p_deviceContext->RSSetViewports(1, &g_viewport1);
+	// set render target view
+	g_p_deviceContext->OMSetRenderTargets(1, &g_p_renderTargetView, g_p_depthStencilView);
+	// set shader constant buffers
+	g_p_deviceContext->VSSetConstantBuffers(0, 1, &g_p_cBufferVS);
+	g_p_deviceContext->PSSetConstantBuffers(1, 1, &g_p_cBufferPS);
+	// clear render target view
+	//g_p_deviceContext->ClearRenderTargetView(g_p_renderTargetView, clearColor);
+	// clear depth stencil view to 1.0 (max depth)
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+	// --- DRAW SKYBOX ---
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Skybox, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Skybox, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixTranslationFromVector(view1.r[3]);
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS_CubeMap, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(1, 1, &g_p_SRV_Skybox);
+	g_p_deviceContext->PSSetSamplers(0, 1, &g_p_samplerLinear);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Skybox, 0, 0);
+	// --- DRAW SKYBOX ---
+
+	// re-clear depth stencil view
+	g_p_deviceContext->ClearDepthStencilView(g_p_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+	// ----- RENDER PREP -----
+
+	// ----- CUBE -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = wrld_Cube;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set PS constant buffer values
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_RTT);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	// ----- CUBE -----
+
+	// ----- GROUND PLANE -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_GroundPlane, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_GroundPlane, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = wrld_GroundPlane;
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS_InputColorLights, 0, 0);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_GroundPlane, 0, 0);
+	// ----- GROUND PLANE -----
+
+	// ----- BRAZIER01 -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Brazier01, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Brazier01, DXGI_FORMAT_R32_UINT, 0);
+	// set VS constant buffer values
+	cBufferVS.wrld = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+	// set VS resources
+	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	// set GS resources
+	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	// set PS constant buffer values
+	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
+	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+	// set PS resources
+	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
+	// draw
+	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
+	// ----- BRAZIER01 -----
+
+	// ----- VISUAL LIGHTS -----
+	// set vert/ind buffers
+	g_p_deviceContext->IASetVertexBuffers(0, 1, &g_p_vBuffer_Cube, strides, offsets);
+	g_p_deviceContext->IASetIndexBuffer(g_p_iBuffer_Cube, DXGI_FORMAT_R32_UINT, 0);
+	// clear offsets
+	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[1] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[2] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[3] = XMMatrixIdentity();
+	cBufferVS.instanceOffsets[4] = XMMatrixIdentity();
+	// size scaling
+	sizeScale = 1.5f;
+	// distance scaling
+	distScale = 1.0f;
+	// --- DIRECTIONAL ---
+	sizeScale = 2.0f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	distScale = 10.0f;
+	for (UINT i = 0; i < LIGHTS_DIR; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(distScale * dLights[i].dir.x,
+			distScale * dLights[i].dir.y, distScale * dLights[i].dir.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = dLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	}
+	// --- DIRECTIONAL ---
+	// --- POINT ---
+	sizeScale = 0.25f;
+	scale = XMMatrixScaling(sizeScale, sizeScale, sizeScale);
+	for (UINT i = 0; i < LIGHTS_PNT; i++)
+	{
+		// set VS constant buffer values
+		cBufferVS.wrld = scale * XMMatrixTranslation(pLights[i].pos.x, pLights[i].pos.y, pLights[i].pos.z);
+		// set VS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
+		g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+		// set PS constant buffer values
+		cBufferPS.instanceColors[0] = pLights[i].color;
+		// set PS resources
+		g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
+		g_p_deviceContext->PSSetShader(g_p_PS_SolidColor, 0, 0);
+		// draw
+		g_p_deviceContext->DrawIndexed(g_numInds_Cube, 0, 0);
+	}
+	// --- POINT ---
+	// ----- VISUAL LIGHTS -----
+	// ---------- MINIMAP RENDER PASS -----------
 
 	// present back buffer; change args to limit/sync framerate
 	g_p_swapChain->Present(1, 0);
@@ -1193,6 +1589,7 @@ void Render()
 	XMStoreFloat4x4(&g_wrld, wrld);
 	XMStoreFloat4x4(&g_view, view);
 	XMStoreFloat4x4(&g_proj, proj);
+	XMStoreFloat4x4(&g_proj_RTT, proj_RTT);
 	XMStoreFloat4x4(&g_wrld_Skybox, wrld_Skybox);
 	XMStoreFloat4x4(&g_wrld_Cube, wrld_Cube);
 	XMStoreFloat4x4(&g_wrld_GroundPlane, wrld_GroundPlane);
