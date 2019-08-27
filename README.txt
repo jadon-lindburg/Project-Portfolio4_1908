@@ -19,7 +19,7 @@ BACKSPACE    : Reset zoom, near/far planes
 
 SHADER CONTROLS
 --------------------------------------------------
-1            : Toggle morphing vertex shader (Brazier01 model only)
-2            : Toggle morphing geometry shader (Brazier01 model only)
-3            : Toggle morphing pixel shader (Brazier01 model only)
+1            : Toggle morphing vertex shader (Brazier01 model in main viewport only)
+2            : Toggle morphing geometry shader (Brazier01 model in main viewport only)
+3            : Toggle morphing pixel shader (Brazier01 model in main viewport only)
 --------------------------------------------------

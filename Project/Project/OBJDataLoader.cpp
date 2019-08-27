@@ -68,7 +68,7 @@ S_OBJ_DATA LoadOBJData(const char* _filepath)
 			case 't': // texcoord
 				float3 tex;
 				tex.x = strtof(tokens[1], nullptr);
-				tex.y = strtof(tokens[2], nullptr);
+				tex.y = 1.0f - strtof(tokens[2], nullptr);
 				if (tokens.size() > 3)
 					tex.z = strtof(tokens[3], nullptr);
 				else

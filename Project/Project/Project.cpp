@@ -131,8 +131,8 @@ ID3D11InputLayout*			g_p_vertexLayout = nullptr;					//released
 // --- INPUT LAYOUT ---
 // --- VERT / IND BUFFERS ---
 // SKYBOX
-ID3D11Buffer*				g_p_vBuffer_Skybox = nullptr;				//
-ID3D11Buffer*				g_p_iBuffer_Skybox = nullptr;				//
+ID3D11Buffer*				g_p_vBuffer_Skybox = nullptr;				//released
+ID3D11Buffer*				g_p_iBuffer_Skybox = nullptr;				//released
 UINT						g_numVerts_Skybox = 0;
 UINT						g_numInds_Skybox = 0;
 // CUBE
@@ -140,11 +140,6 @@ ID3D11Buffer*				g_p_vBuffer_Cube = nullptr;					//released
 ID3D11Buffer*				g_p_iBuffer_Cube = nullptr;					//released
 UINT						g_numVerts_Cube = 0;
 UINT						g_numInds_Cube = 0;
-// TEST OBJ2HEADER MESH
-ID3D11Buffer*				g_p_vBuffer_TestHeaderMesh = nullptr;		//released
-ID3D11Buffer*				g_p_iBuffer_TestHeaderMesh = nullptr;		//released
-UINT						g_numVerts_TestHeaderMesh = 0;
-UINT						g_numInds_TestHeaderMesh = 0;
 // GROUND PLANE
 ID3D11Buffer*				g_p_vBuffer_GroundPlane = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_GroundPlane = nullptr;			//released
@@ -157,6 +152,16 @@ ID3D11Buffer*				g_p_vBuffer_Brazier01 = nullptr;			//released
 ID3D11Buffer*				g_p_iBuffer_Brazier01 = nullptr;			//released
 UINT						g_numVerts_Brazier01 = 0;
 UINT						g_numInds_Brazier01 = 0;
+// SPACESHIP
+ID3D11Buffer*				g_p_vBuffer_Spaceship = nullptr;			//released
+ID3D11Buffer*				g_p_iBuffer_Spaceship = nullptr;			//released
+UINT						g_numVerts_Spaceship = 0;
+UINT						g_numInds_Spaceship = 0;
+// PLANET
+ID3D11Buffer*				g_p_vBuffer_Planet = nullptr;				//released
+ID3D11Buffer*				g_p_iBuffer_Planet = nullptr;				//released
+UINT						g_numVerts_Planet = 0;
+UINT						g_numInds_Planet = 0;
 // --- VERT / IND BUFFERS ---
 // --- CONSTANT BUFFERS ---
 ID3D11Buffer*				g_p_cBufferVS = nullptr;					//released
@@ -165,6 +170,12 @@ ID3D11Buffer*				g_p_cBufferPS = nullptr;					//released
 // --- TEXTURES / SHADER RESOURCE VIEWS ---
 ID3D11ShaderResourceView*	g_p_SRV_Skybox = nullptr;					//released
 ID3D11ShaderResourceView*	g_p_SRV_Brazier01 = nullptr;				//released
+ID3D11ShaderResourceView*	g_p_SRV_Spaceship = nullptr;				//released
+ID3D11ShaderResourceView*	g_p_SRV_Sun = nullptr;						//released
+ID3D11ShaderResourceView*	g_p_SRV_Earth = nullptr;					//released
+ID3D11ShaderResourceView*	g_p_SRV_Moon = nullptr;						//released
+ID3D11ShaderResourceView*	g_p_SRV_Mars = nullptr;						//released
+ID3D11ShaderResourceView*	g_p_SRV_Jupiter = nullptr;					//released
 ID3D11Texture2D*			g_p_tex_RTT = nullptr;						//released
 ID3D11ShaderResourceView*	g_p_SRV_RTT = nullptr;						//released
 // --- TEXTURES / SHADER RESOURCE VIEWS ---
@@ -192,13 +203,18 @@ ID3D11PixelShader*			g_p_PS_SolidColorLights = nullptr;			//released
 // ----- MATRICES -----
 XMFLOAT4X4					g_wrld;
 XMFLOAT4X4					g_view;
-XMFLOAT4X4					g_view_RTT;
 XMFLOAT4X4					g_proj;
 XMFLOAT4X4					g_proj_RTT;
 XMFLOAT4X4					g_wrld_Skybox;
 XMFLOAT4X4					g_wrld_Cube;
 XMFLOAT4X4					g_wrld_GroundPlane;
 XMFLOAT4X4					g_wrld_Brazier01;
+XMFLOAT4X4					g_wrld_Spaceship;
+XMFLOAT4X4					g_wrld_Sun;
+XMFLOAT4X4					g_wrld_Earth;
+XMFLOAT4X4					g_wrld_Moon;
+XMFLOAT4X4					g_wrld_Mars;
+XMFLOAT4X4					g_wrld_Jupiter;
 // ----- MATRICES -----
 
 // ----- CAMERA VALUES -----
@@ -395,10 +411,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	SRVDesc_RTT.Texture2D.MipLevels = 1;
 	hr = g_p_device->CreateShaderResourceView(g_p_tex_RTT, &SRVDesc_RTT, &g_p_SRV_RTT);
 	// --- RTT ---
+
 	// skybox
 	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/skybox.dds", nullptr, &g_p_SRV_Skybox);
-	// Brazier01
-	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/heavenTorch_diffuse.dds", nullptr, &g_p_SRV_Brazier01);
+
+	// mesh textures
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/Brazier01map.dds", nullptr, &g_p_SRV_Brazier01);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/spaceshipmap.dds", nullptr, &g_p_SRV_Spaceship);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/sunmap.dds", nullptr, &g_p_SRV_Sun);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/earthmap.dds", nullptr, &g_p_SRV_Earth);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/moonmap.dds", nullptr, &g_p_SRV_Moon);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/marsmap.dds", nullptr, &g_p_SRV_Mars);
+	hr = CreateDDSTextureFromFile(g_p_device, L"Assets/jupitermap.dds", nullptr, &g_p_SRV_Jupiter);
 	// ---------- SHADER RESOURCE VIEWS ----------
 
 	// ---------- SAMPLER STATES ----------
@@ -529,7 +553,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// load vertex / index data
 	S_VERTEX* p_verts_Brazier01 = nullptr;
 	UINT* p_inds_Brazier01 = nullptr;
-	ProcessOBJData("Assets/heavenTorch.obj", &p_verts_Brazier01, g_numVerts_Brazier01,
+	ProcessOBJData("Assets/Brazier01.obj", &p_verts_Brazier01, g_numVerts_Brazier01,
 		&p_inds_Brazier01, g_numInds_Brazier01);
 	// create vertex / index buffers
 	hr = InitVertexBuffer(g_numVerts_Brazier01, &p_verts_Brazier01, &g_p_vBuffer_Brazier01);
@@ -540,6 +564,42 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	delete[] p_verts_Brazier01;
 	delete[] p_inds_Brazier01;
 	// ----- BRAZIER01 -----
+
+	// ----- SPACESHIP -----
+	// load vertex / index data
+	S_VERTEX* p_verts_Spaceship = nullptr;
+	UINT* p_inds_Spaceship = nullptr;
+	ProcessOBJData("Assets/spaceship.obj", &p_verts_Spaceship, g_numVerts_Spaceship,
+		&p_inds_Spaceship, g_numInds_Spaceship);
+	// create vertex / index buffers
+	hr = InitVertexBuffer(g_numVerts_Spaceship, &p_verts_Spaceship, &g_p_vBuffer_Spaceship);
+	hr = InitIndexBuffer(g_numInds_Spaceship, &p_inds_Spaceship, &g_p_iBuffer_Spaceship);
+	// set initial world matrix
+	XMStoreFloat4x4(&g_wrld_Spaceship, XMMatrixIdentity());
+	// clear temp memory
+	delete[] p_verts_Spaceship;
+	delete[] p_inds_Spaceship;
+	// ----- SPACESHIP -----
+
+	// ----- PLANET -----
+	// load vertex / index data
+	S_VERTEX* p_verts_Planet = nullptr;
+	UINT* p_inds_Planet = nullptr;
+	ProcessOBJData("Assets/planet.obj", &p_verts_Planet, g_numVerts_Planet,
+		&p_inds_Planet, g_numInds_Planet);
+	// create vertex / index buffers
+	hr = InitVertexBuffer(g_numVerts_Planet, &p_verts_Planet, &g_p_vBuffer_Planet);
+	hr = InitIndexBuffer(g_numInds_Planet, &p_inds_Planet, &g_p_iBuffer_Planet);
+	// set initial world matrices
+	XMStoreFloat4x4(&g_wrld_Sun, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Earth, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Moon, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Mars, XMMatrixIdentity());
+	XMStoreFloat4x4(&g_wrld_Jupiter, XMMatrixIdentity());
+	// clear temp memory
+	delete[] p_verts_Planet;
+	delete[] p_inds_Planet;
+	// ----- PLANET -----
 	// ---------- MESHES ----------
 
 	// set type of topology to draw
@@ -555,18 +615,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	XMStoreFloat4x4(&g_wrld, XMMatrixIdentity());
 
 	// view
-	// main
 	XMVECTOR eye = XMVectorSet(0, 6, -10, 0);
 	XMVECTOR at = XMVectorSet(0, 2, 0, 0);
 	XMVECTOR up = XMVectorSet(0, 1, 0, 0);
 	XMMATRIX view = XMMatrixLookAtLH(eye, at, up);
 	XMStoreFloat4x4(&g_view, XMMatrixInverse(&XMMatrixDeterminant(view), view));
-	// RTT
-	eye = XMVectorSet(0, 6, -10, 0);
-	at = XMVectorSet(0, 2, 0, 0);
-	up = XMVectorSet(0, 1, 0, 0);
-	view = XMMatrixLookAtLH(eye, at, up);
-	XMStoreFloat4x4(&g_view_RTT, XMMatrixInverse(&XMMatrixDeterminant(view), view));
 
 	// projection
 	// main
@@ -1331,14 +1384,17 @@ void Render()
 	cBufferVS.instanceOffsets[0] = XMMatrixIdentity();
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferVS, 0, nullptr, &cBufferVS, 0, 0);
 	// set VS resources
-	g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);
+	if (g_defaultVS) g_p_deviceContext->VSSetShader(g_p_VS, 0, 0);	// default shader
+	else g_p_deviceContext->VSSetShader(g_p_VS_Distort, 0, 0);		// fancy shader
 	// set GS resources
-	g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);
+	if (g_defaultGS) g_p_deviceContext->GSSetShader(g_p_GS, 0, 0);	// default shader
+	else g_p_deviceContext->GSSetShader(g_p_GS_Distort, 0, 0);		// fancy shader
 	// set PS constant buffer values
 	cBufferPS.instanceColors[0] = { 0.1f, 0.1f, 0.1f, 1 };
 	g_p_deviceContext->UpdateSubresource(g_p_cBufferPS, 0, nullptr, &cBufferPS, 0, 0);
 	// set PS resources
-	g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);
+	if (g_defaultPS) g_p_deviceContext->PSSetShader(g_p_PS, 0, 0);	// default shader
+	else g_p_deviceContext->PSSetShader(g_p_PS_Distort, 0, 0);		// fancy shader
 	g_p_deviceContext->PSSetShaderResources(0, 1, &g_p_SRV_Brazier01);
 	// draw
 	g_p_deviceContext->DrawIndexed(g_numInds_Brazier01, 0, 0);
@@ -1619,25 +1675,34 @@ void Cleanup()
 	// --- SHADER RESOURCE VIEWS ---
 	if (g_p_SRV_RTT) g_p_SRV_RTT->Release();
 	if (g_p_tex_RTT) g_p_tex_RTT->Release();
+	if (g_p_SRV_Jupiter) g_p_SRV_Jupiter->Release();
+	if (g_p_SRV_Mars) g_p_SRV_Mars->Release();
+	if (g_p_SRV_Moon) g_p_SRV_Moon->Release();
+	if (g_p_SRV_Earth) g_p_SRV_Earth->Release();
+	if (g_p_SRV_Sun) g_p_SRV_Sun->Release();
+	if (g_p_SRV_Spaceship) g_p_SRV_Spaceship->Release();
 	if (g_p_SRV_Brazier01) g_p_SRV_Brazier01->Release();
 	if (g_p_SRV_Skybox) g_p_SRV_Skybox->Release();
 	// --- CONSTANT BUFFERS ---
 	if (g_p_cBufferPS) g_p_cBufferPS->Release();
 	if (g_p_cBufferVS) g_p_cBufferVS->Release();
 	// --- VERT / IND BUFFERS ---
+	// PLANET
+	if (g_p_iBuffer_Planet) g_p_iBuffer_Planet->Release();
+	if (g_p_vBuffer_Planet) g_p_vBuffer_Planet->Release();
+	// SPACESHIP
+	if (g_p_iBuffer_Spaceship) g_p_iBuffer_Spaceship->Release();
+	if (g_p_vBuffer_Spaceship) g_p_vBuffer_Spaceship->Release();
 	// BRAZIER01
 	if (g_p_iBuffer_Brazier01) g_p_iBuffer_Brazier01->Release();
 	if (g_p_vBuffer_Brazier01) g_p_vBuffer_Brazier01->Release();
 	// GROUND PLANE
 	if (g_p_iBuffer_GroundPlane) g_p_iBuffer_GroundPlane->Release();
 	if (g_p_vBuffer_GroundPlane) g_p_vBuffer_GroundPlane->Release();
-	// test obj2header mesh
-	if (g_p_iBuffer_TestHeaderMesh) g_p_iBuffer_TestHeaderMesh->Release();
-	if (g_p_vBuffer_TestHeaderMesh) g_p_vBuffer_TestHeaderMesh->Release();
-	// cube
+	// CUBE
 	if (g_p_iBuffer_Cube) g_p_iBuffer_Cube->Release();
 	if (g_p_vBuffer_Cube) g_p_vBuffer_Cube->Release();
-	// skybox
+	// SKYBOX
 	if (g_p_iBuffer_Skybox) g_p_iBuffer_Skybox->Release();
 	if (g_p_vBuffer_Skybox) g_p_vBuffer_Skybox->Release();
 	// --- VERTEX LAYOUT ---
